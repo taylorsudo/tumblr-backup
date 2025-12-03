@@ -262,7 +262,7 @@ The repository includes a GitHub Actions workflow that automatically backs up yo
 
 - The workflow runs automatically every 4 hours
 - You can also trigger it manually from the Actions tab
-- New posts and media are uploaded to your Dropbox in the `/tumblr-backup/` folder
+- New posts and media are uploaded to Dropbox
 - Existing posts are skipped (incremental backup)
 - Files are synced to your Dropbox account automatically
 
@@ -272,14 +272,6 @@ To run a backup manually:
 1. Go to the **Actions** tab
 2. Select **Tumblr Backup** workflow
 3. Click **Run workflow**
-
-## Troubleshooting
-
-- **"Error: config.json not found"**: Create your config.json file from config.example.json
-- **"Error fetching posts"**: Check your API key and blog identifier
-- **Empty backup**: Ensure your blog identifier is correct and your blog has posts
-- **GitHub Actions failing**: Check that all required secrets are set correctly (`BLOG_IDENTIFIER`, `API_KEY`, `OUTPUT_DIR`, `DROPBOX_ACCESS_TOKEN`)
-- **Dropbox upload errors**: Verify your Dropbox access token is valid and has the required permissions (`files.content.write` and `files.content.read`)
 
 ## API Documentation
 

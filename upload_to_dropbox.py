@@ -92,7 +92,7 @@ if __name__ == "__main__":
     # Get configuration from environment variables
     access_token = os.environ.get('DROPBOX_ACCESS_TOKEN')
     local_folder = os.environ.get('LOCAL_FOLDER', 'backup')
-    dropbox_path = os.environ.get('DROPBOX_PATH', '/Tumblr')
+    dropbox_path = os.environ.get('DROPBOX_PATH', '')
 
     if not access_token:
         print("ERROR: DROPBOX_ACCESS_TOKEN environment variable not set")
