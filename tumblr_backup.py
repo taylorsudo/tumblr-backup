@@ -7,9 +7,10 @@ Backs up Tumblr posts to markdown files using the Tumblr API v2
 import os
 import json
 import requests
+from requests_oauthlib import OAuth1
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Set, Optional
 import time
 import re
 from urllib.parse import urlparse
@@ -17,7 +18,9 @@ from urllib.parse import urlparse
 
 class TumblrBackup:
     def __init__(self, blog_identifier: str, api_key: str, output_dir: str = "backup",
-                 download_images: bool = True, download_videos: bool = True, download_audio: bool = True):
+                 download_images: bool = True, download_videos: bool = True, download_audio: bool = True,
+                 consumer_secret: Optional[str] = None, oauth_token: Optional[str] = None,
+                 oauth_token_secret: Optional[str] = None):
         """
         Initialize the Tumblr backup tool
 
@@ -28,6 +31,9 @@ class TumblrBackup:
             download_images: Whether to download images locally
             download_videos: Whether to download videos locally
             download_audio: Whether to download audio files locally
+            consumer_secret: OAuth consumer secret (required for private blogs)
+            oauth_token: OAuth token (required for private blogs)
+            oauth_token_secret: OAuth token secret (required for private blogs)
         """
         self.blog_identifier = blog_identifier
         self.api_key = api_key
@@ -36,6 +42,22 @@ class TumblrBackup:
         self.download_images = download_images
         self.download_videos = download_videos
         self.download_audio = download_audio
+
+        # OAuth credentials for private blogs
+        self.consumer_secret = consumer_secret
+        self.oauth_token = oauth_token
+        self.oauth_token_secret = oauth_token_secret
+
+        # Setup OAuth if credentials provided
+        self.auth = None
+        if all([consumer_secret, oauth_token, oauth_token_secret]):
+            self.auth = OAuth1(
+                client_key=api_key,
+                client_secret=consumer_secret,
+                resource_owner_key=oauth_token,
+                resource_owner_secret=oauth_token_secret
+            )
+            print("Using OAuth authentication for private blog access")
 
         # Create output directory if it doesn't exist
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -53,14 +75,17 @@ class TumblrBackup:
         """
         url = f"{self.base_url}/blog/{self.blog_identifier}/posts"
         params = {
-            "api_key": self.api_key,
             "limit": min(limit, 20),
             "offset": offset,
             "npf": "true"  # Use Neue Post Format for better content structure
         }
 
+        # Add api_key only if not using OAuth
+        if not self.auth:
+            params["api_key"] = self.api_key
+
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, auth=self.auth)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -455,12 +480,27 @@ def main():
     download_videos = config.get("download_videos", True)
     download_audio = config.get("download_audio", True)
 
+    # OAuth credentials for private blogs
+    consumer_secret = config.get("consumer_secret")
+    oauth_token = config.get("oauth_token")
+    oauth_token_secret = config.get("oauth_token_secret")
+
     if not blog_identifier or not api_key:
         print("Error: blog_identifier and api_key are required in config.json")
         return
 
     # Create backup instance and run
-    backup = TumblrBackup(blog_identifier, api_key, output_dir, download_images, download_videos, download_audio)
+    backup = TumblrBackup(
+        blog_identifier,
+        api_key,
+        output_dir,
+        download_images,
+        download_videos,
+        download_audio,
+        consumer_secret,
+        oauth_token,
+        oauth_token_secret
+    )
     backup.backup()
 
 

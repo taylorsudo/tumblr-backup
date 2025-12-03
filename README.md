@@ -16,12 +16,31 @@ Automatically back up your Tumblr posts to markdown files using the Tumblr API v
 
 ## Setup
 
-### 1. Get Your Tumblr API Key
+### 1. Get Your Tumblr API Credentials
 
+#### For Public Blogs:
 1. Go to [https://www.tumblr.com/oauth/apps](https://www.tumblr.com/oauth/apps)
 2. Click "Register application"
 3. Fill in the required fields (you can use dummy URLs for callback)
 4. Copy your **OAuth Consumer Key** (this is your API key)
+
+#### For Private Blogs:
+Private blogs require full OAuth authentication. You'll need to get OAuth tokens:
+
+1. Follow steps 1-3 above to register your app
+2. Copy both the **OAuth Consumer Key** AND **Consumer Secret**
+3. Use a tool like [Tumblr OAuth Tool](https://api.tumblr.com/console/calls/user/info) or follow [Tumblr's OAuth flow](https://www.tumblr.com/docs/en/api/v2#auth) to obtain:
+   - **OAuth Token**
+   - **OAuth Token Secret**
+
+**Easy Method:** Use the included helper script:
+
+```bash
+pip install requests-oauthlib
+python get_oauth_tokens.py
+```
+
+This interactive script will guide you through the OAuth process and output all the tokens you need for your config.json and GitHub secrets.
 
 ### 2. Install Dependencies
 
@@ -39,6 +58,7 @@ cp config.example.json config.json
 
 Edit `config.json` with your details:
 
+**For Public Blogs:**
 ```json
 {
   "blog_identifier": "yourblog.tumblr.com",
@@ -50,8 +70,27 @@ Edit `config.json` with your details:
 }
 ```
 
+**For Private Blogs:**
+```json
+{
+  "blog_identifier": "yourblog.tumblr.com",
+  "api_key": "your_consumer_key_here",
+  "consumer_secret": "your_consumer_secret_here",
+  "oauth_token": "your_oauth_token_here",
+  "oauth_token_secret": "your_oauth_token_secret_here",
+  "output_dir": "backup",
+  "download_images": true,
+  "download_videos": true,
+  "download_audio": true
+}
+```
+
+**Configuration Options:**
 - **blog_identifier**: Your blog URL (e.g., "yourblog.tumblr.com" or just "yourblog")
 - **api_key**: Your OAuth Consumer Key from step 1
+- **consumer_secret**: (Private blogs only) Your OAuth Consumer Secret
+- **oauth_token**: (Private blogs only) Your OAuth Token
+- **oauth_token_secret**: (Private blogs only) Your OAuth Token Secret
 - **output_dir**: Directory where backups will be saved (default: "backup")
 - **download_images**: Whether to download images locally (default: true)
 - **download_videos**: Whether to download videos locally (default: true)
@@ -199,10 +238,16 @@ The repository includes a GitHub Actions workflow that automatically backs up yo
    - Navigate to **Settings** → **Secrets and variables** → **Actions**
 
    **Add these Repository secrets** (Secrets tab):
+
+   For Public Blogs:
    - `BLOG_IDENTIFIER`: Your Tumblr blog URL (e.g., "yourblog.tumblr.com")
    - `API_KEY`: Your Tumblr API Consumer Key
-   - `OUTPUT_DIR`: Directory for backups (e.g., "backup")
    - `DROPBOX_ACCESS_TOKEN`: Your Dropbox access token from step 1
+
+   For Private Blogs (add all of the above plus):
+   - `CONSUMER_SECRET`: Your Tumblr OAuth Consumer Secret
+   - `OAUTH_TOKEN`: Your Tumblr OAuth Token
+   - `OAUTH_TOKEN_SECRET`: Your Tumblr OAuth Token Secret
 
    **Optionally add these Repository variables** (Variables tab):
    - `DOWNLOAD_IMAGES`: Set to `false` to disable image downloads (default: `true`)

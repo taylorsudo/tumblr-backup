@@ -31,6 +31,9 @@ jobs:
         {
           "blog_identifier": "${{ secrets.BLOG_IDENTIFIER }}",
           "api_key": "${{ secrets.API_KEY }}",
+          "consumer_secret": "${{ secrets.CONSUMER_SECRET }}",
+          "oauth_token": "${{ secrets.OAUTH_TOKEN }}",
+          "oauth_token_secret": "${{ secrets.OAUTH_TOKEN_SECRET }}",
           "output_dir": "backup",
           "download_images": ${{ vars.DOWNLOAD_IMAGES || 'true' }},
           "download_videos": ${{ vars.DOWNLOAD_VIDEOS || 'true' }},
