@@ -423,7 +423,6 @@ class TumblrBackup:
 
         # Skip if already exists
         if filepath.exists():
-            print(f"Skipping existing post: {filepath}")
             return
 
         # Create media directory for this post

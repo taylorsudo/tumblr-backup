@@ -36,8 +36,6 @@ def upload_folder_to_dropbox(local_folder, dropbox_path, access_token):
             relative_path = file_path.relative_to(local_path)
             dropbox_file_path = f"{dropbox_path}/{relative_path}".replace('\\', '/')
 
-            print(f"Uploading {file_path} to {dropbox_file_path}...")
-
             try:
                 with open(file_path, 'rb') as f:
                     file_size = file_path.stat().st_size
@@ -53,9 +51,6 @@ def upload_folder_to_dropbox(local_folder, dropbox_path, access_token):
                             dropbox_file_path,
                             mode=dropbox.files.WriteMode.overwrite
                         )
-
-                print(f"✓ Uploaded: {dropbox_file_path}")
-                uploaded_count += 1
 
             except Exception as e:
                 print(f"✗ Failed to upload {file_path}: {e}")

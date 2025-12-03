@@ -51,4 +51,4 @@ jobs:
       env:
         DROPBOX_ACCESS_TOKEN: ${{ secrets.DROPBOX_ACCESS_TOKEN }}
         LOCAL_FOLDER: backup
-        DROPBOX_PATH: /Tumblr
+        DROPBOX_PATH: /
