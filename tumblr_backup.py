@@ -413,12 +413,13 @@ class TumblrBackup:
         year = date.strftime("%Y")
         year_month = date.strftime("%Y-%m")
         date_str = date.strftime("%Y-%m-%d")
+        time_str = date.strftime("%H-%M")
 
         post_dir = self.output_dir / year / year_month / date_str
         post_dir.mkdir(parents=True, exist_ok=True)
 
         # Create filename
-        filename = f"{safe_title}.md"
+        filename = f"{time_str}-{safe_title}.md"
         filepath = post_dir / filename
 
         # Skip if already exists
