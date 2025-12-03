@@ -11,6 +11,11 @@ on:
 jobs:
   backup:
     runs-on: ubuntu-latest
+    env:
+      OUTPUT_DIR: backup
+      DOWNLOAD_IMAGES: true
+      DOWNLOAD_VIDEOS: true
+      DOWNLOAD_AUDIO: true
 
     steps:
     - name: Checkout repository
@@ -34,10 +39,10 @@ jobs:
           "consumer_secret": "${{ secrets.CONSUMER_SECRET }}",
           "oauth_token": "${{ secrets.OAUTH_TOKEN }}",
           "oauth_token_secret": "${{ secrets.OAUTH_TOKEN_SECRET }}",
-          "output_dir": "backup",
-          "download_images": ${{ vars.DOWNLOAD_IMAGES || 'true' }},
-          "download_videos": ${{ vars.DOWNLOAD_VIDEOS || 'true' }},
-          "download_audio": ${{ vars.DOWNLOAD_AUDIO || 'true' }}
+          "output_dir": "${{ env.OUTPUT_DIR }}",
+          "download_images": ${{ env.DOWNLOAD_IMAGES }},
+          "download_videos": ${{ env.DOWNLOAD_VIDEOS }},
+          "download_audio": ${{ env.DOWNLOAD_AUDIO }}
         }
         EOF
 

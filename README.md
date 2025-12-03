@@ -249,10 +249,9 @@ The repository includes a GitHub Actions workflow that automatically backs up yo
    - `OAUTH_TOKEN`: Your Tumblr OAuth Token
    - `OAUTH_TOKEN_SECRET`: Your Tumblr OAuth Token Secret
 
-   **Optionally add these Repository variables** (Variables tab):
-   - `DOWNLOAD_IMAGES`: Set to `false` to disable image downloads (default: `true`)
-   - `DOWNLOAD_VIDEOS`: Set to `false` to disable video downloads (default: `true`)
-   - `DOWNLOAD_AUDIO`: Set to `false` to disable audio downloads (default: `true`)
+   **Optional: Adjust media download flags in the workflow file**:
+   - Open `.github/workflows/backup.yml`
+   - In the `env` block, set `DOWNLOAD_IMAGES`, `DOWNLOAD_VIDEOS`, and `DOWNLOAD_AUDIO` to `false` if you want to skip downloading that media type (all default to `true`)
 
 4. **Enable GitHub Actions**:
    - Go to the **Actions** tab in your repository
