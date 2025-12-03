@@ -9,6 +9,7 @@ import json
 import requests
 from requests_oauthlib import OAuth1
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import List, Dict, Any, Set, Optional
 import time
@@ -42,6 +43,7 @@ class TumblrBackup:
         self.download_images = download_images
         self.download_videos = download_videos
         self.download_audio = download_audio
+        self.tz = ZoneInfo("Australia/Sydney")
 
         # OAuth credentials for private blogs
         self.consumer_secret = consumer_secret
@@ -209,7 +211,7 @@ class TumblrBackup:
         post_type = post.get("type", "unknown")
         post_id = post.get("id_string", post.get("id", "unknown"))
         timestamp = post.get("timestamp", 0)
-        date = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+        date = datetime.fromtimestamp(timestamp, tz=self.tz).strftime("%Y-%m-%d %H:%M:%S")
         tags = post.get("tags", [])
         post_url = post.get("post_url", "")
 
@@ -400,7 +402,7 @@ class TumblrBackup:
             post: Post data from API
         """
         timestamp = post.get("timestamp", 0)
-        date = datetime.fromtimestamp(timestamp)
+        date = datetime.fromtimestamp(timestamp, tz=self.tz)
         post_id = post.get("id_string", post.get("id", "unknown"))
 
         # Get post title and sanitize
