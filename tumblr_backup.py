@@ -209,18 +209,18 @@ class TumblrBackup:
 
         # Header with metadata
         post_type = post.get("type", "unknown")
-        post_id = post.get("id_string", post.get("id", "unknown"))
-        timestamp = post.get("timestamp", 0)
-        date = datetime.fromtimestamp(timestamp, tz=self.tz).strftime("%Y-%m-%d %H:%M:%S")
+        # post_id = post.get("id_string", post.get("id", "unknown"))
+        # timestamp = post.get("timestamp", 0)
+        # date = datetime.fromtimestamp(timestamp, tz=self.tz).strftime("%Y-%m-%d %H:%M:%S")
         tags = post.get("tags", [])
-        post_url = post.get("post_url", "")
+        # post_url = post.get("post_url", "")
 
         md_content.append("---")
-        md_content.append(f"post_id: {post_id}")
-        md_content.append(f"title: {post.get('summary', 'Untitled')}")
-        md_content.append(f"date: {date}")
-        md_content.append(f"type: {post_type}")
-        md_content.append(f"url: {post_url}")
+        # md_content.append(f"post_id: {post_id}")
+        # md_content.append(f"title: {post.get('summary', 'Untitled')}")
+        # md_content.append(f"date: {date}")
+        # md_content.append(f"type: {post_type}")
+        # md_content.append(f"url: {post_url}")
         if tags:
             md_content.append("tags:")
             for tag in tags:
