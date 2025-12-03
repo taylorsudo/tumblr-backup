@@ -33,15 +33,6 @@ Private blogs require full OAuth authentication. You'll need to get OAuth tokens
    - **OAuth Token**
    - **OAuth Token Secret**
 
-**Easy Method:** Use the included helper script:
-
-```bash
-pip install requests-oauthlib
-python get_oauth_tokens.py
-```
-
-This interactive script will guide you through the OAuth process and output all the tokens you need for your config.json and GitHub secrets.
-
 ### 2. Install Dependencies
 
 ```bash
