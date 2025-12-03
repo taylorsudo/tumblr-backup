@@ -28,6 +28,15 @@ def upload_folder_to_dropbox(local_folder, dropbox_path, access_token):
         print(f"ERROR: Local folder '{local_folder}' does not exist")
         sys.exit(1)
 
+    # Normalize Dropbox path (must start with "/" or be root)
+    dropbox_path = dropbox_path.strip()
+    if dropbox_path in ("", "/"):
+        dropbox_path = ""
+    else:
+        if not dropbox_path.startswith("/"):
+            dropbox_path = f"/{dropbox_path}"
+        dropbox_path = dropbox_path.rstrip("/")
+
     # Upload all files in the folder
     uploaded_count = 0
     for file_path in local_path.rglob('*'):
@@ -51,9 +60,10 @@ def upload_folder_to_dropbox(local_folder, dropbox_path, access_token):
                             dropbox_file_path,
                             mode=dropbox.files.WriteMode.overwrite
                         )
+                    uploaded_count += 1
 
             except Exception as e:
-                print(f"✗ Failed to upload {file_path}: {e}")
+                print(f"✗ Failed to upload: {e}")
 
     print(f"\nUpload complete! {uploaded_count} file(s) uploaded to Dropbox.")
 

@@ -162,7 +162,7 @@ class TumblrBackup:
             # Check file size (skip if > 100MB)
             content_length = response.headers.get('content-length')
             if content_length and int(content_length) > 100 * 1024 * 1024:
-                print(f"Warning: File too large (>100MB), skipping: {media_url}")
+                print(f"Warning: File too large (>100MB), skipping.")
                 return media_url
 
             with open(media_path, "wb") as f:
@@ -172,7 +172,7 @@ class TumblrBackup:
             return f"media/{filename}"
 
         except Exception as e:
-            print(f"Warning: Failed to download media {media_url}: {e}")
+            print(f"Warning: Failed to download media: {e}")
             return media_url  # Return original URL as fallback
 
     def is_external_media(self, url: str, media_type: str) -> bool:
