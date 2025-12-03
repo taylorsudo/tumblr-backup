@@ -43,8 +43,9 @@ jobs:
         python tumblr_backup.py
 
     - name: Upload to Dropbox
-      uses: dropbox/dropbox-action@v1
-      with:
-        args: upload backup/ /Tumblr/
+      run: |
+        python upload_to_dropbox.py
       env:
         DROPBOX_ACCESS_TOKEN: ${{ secrets.DROPBOX_ACCESS_TOKEN }}
+        LOCAL_FOLDER: backup
+        DROPBOX_PATH: /Tumblr
