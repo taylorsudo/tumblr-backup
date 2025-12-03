@@ -25,7 +25,7 @@ class TumblrBackup:
         Initialize the Tumblr backup tool
 
         Args:
-            blog_identifier: Your blog name (e.g., 'yourblog.tumblr.com' or just 'yourblog')
+            blog_identifier: Your Tumblr username
             api_key: Your Tumblr API consumer key
             output_dir: Directory to save backup files
             download_images: Whether to download images locally
@@ -435,8 +435,6 @@ class TumblrBackup:
         # Save the markdown file
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(markdown_content)
-
-        print(f"Saved: {filepath}")
 
     def backup(self) -> None:
         """

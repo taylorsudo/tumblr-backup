@@ -1,5 +1,5 @@
 {
-  "blog_identifier": "yourblog.tumblr.com",
+  "blog_identifier": "yourblog",
   "api_key": "your_consumer_key_here",
   "consumer_secret": "your_consumer_secret_here",
   "oauth_token": "your_oauth_token_here",

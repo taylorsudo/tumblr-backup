@@ -61,7 +61,7 @@ Edit `config.json` with your details:
 **For Public Blogs:**
 ```json
 {
-  "blog_identifier": "yourblog.tumblr.com",
+  "blog_identifier": "yourblog",
   "api_key": "your_consumer_key_here",
   "output_dir": "backup",
   "download_images": true,
@@ -73,7 +73,7 @@ Edit `config.json` with your details:
 **For Private Blogs:**
 ```json
 {
-  "blog_identifier": "yourblog.tumblr.com",
+  "blog_identifier": "yourblog",
   "api_key": "your_consumer_key_here",
   "consumer_secret": "your_consumer_secret_here",
   "oauth_token": "your_oauth_token_here",
@@ -86,7 +86,7 @@ Edit `config.json` with your details:
 ```
 
 **Configuration Options:**
-- **blog_identifier**: Your blog URL (e.g., "yourblog.tumblr.com" or just "yourblog")
+- **blog_identifier**: Your Tumblr username
 - **api_key**: Your OAuth Consumer Key from step 1
 - **consumer_secret**: (Private blogs only) Your OAuth Consumer Secret
 - **oauth_token**: (Private blogs only) Your OAuth Token
@@ -240,7 +240,7 @@ The repository includes a GitHub Actions workflow that automatically backs up yo
    **Add these Repository secrets** (Secrets tab):
 
    For Public Blogs:
-   - `BLOG_IDENTIFIER`: Your Tumblr blog URL (e.g., "yourblog.tumblr.com")
+   - `BLOG_IDENTIFIER`: Your Tumblr username
    - `API_KEY`: Your Tumblr API Consumer Key
    - `DROPBOX_ACCESS_TOKEN`: Your Dropbox access token from step 1
 

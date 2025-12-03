@@ -67,7 +67,7 @@ def get_oauth_tokens():
         print("=" * 50)
         print(f"""
 {{
-  "blog_identifier": "yourblog.tumblr.com",
+  "blog_identifier": "yourblog",
   "api_key": "{consumer_key}",
   "consumer_secret": "{consumer_secret}",
   "oauth_token": "{oauth_tokens.get('oauth_token')}",
@@ -81,7 +81,7 @@ def get_oauth_tokens():
 
         print("\nFor GitHub Actions, add these as repository secrets:")
         print("=" * 50)
-        print(f"BLOG_IDENTIFIER: yourblog.tumblr.com")
+        print(f"BLOG_IDENTIFIER: yourblog")
         print(f"API_KEY: {consumer_key}")
         print(f"CONSUMER_SECRET: {consumer_secret}")
         print(f"OAUTH_TOKEN: {oauth_tokens.get('oauth_token')}")
