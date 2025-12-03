@@ -31,7 +31,7 @@ jobs:
         {
           "blog_identifier": "${{ secrets.BLOG_IDENTIFIER }}",
           "api_key": "${{ secrets.API_KEY }}",
-          "output_dir": "${{ secrets.OUTPUT_DIR }}",
+          "output_dir": "backup",
           "download_images": ${{ vars.DOWNLOAD_IMAGES || 'true' }},
           "download_videos": ${{ vars.DOWNLOAD_VIDEOS || 'true' }},
           "download_audio": ${{ vars.DOWNLOAD_AUDIO || 'true' }}
@@ -45,6 +45,6 @@ jobs:
     - name: Upload to Dropbox
       uses: dropbox/dropbox-action@v1
       with:
-        args: upload ${{ secrets.OUTPUT_DIR }}/ /Tumblr/
+        args: upload backup/ /Tumblr/
       env:
         DROPBOX_ACCESS_TOKEN: ${{ secrets.DROPBOX_ACCESS_TOKEN }}
