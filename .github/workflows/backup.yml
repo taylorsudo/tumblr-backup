@@ -1,0 +1,50 @@
+name: Tumblr Backup
+
+on:
+  schedule:
+    - cron: '0 22 * * *'
+    - cron: '0 2 * * *'
+    - cron: '0 6 * * *'
+    - cron: '0 10 * * *'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+
+    - name: Create config.json from secrets and variables
+      run: |
+        cat > config.json << EOF
+        {
+          "blog_identifier": "${{ secrets.BLOG_IDENTIFIER }}",
+          "api_key": "${{ secrets.API_KEY }}",
+          "output_dir": "${{ secrets.OUTPUT_DIR }}",
+          "download_images": ${{ vars.DOWNLOAD_IMAGES || 'true' }},
+          "download_videos": ${{ vars.DOWNLOAD_VIDEOS || 'true' }},
+          "download_audio": ${{ vars.DOWNLOAD_AUDIO || 'true' }}
+        }
+        EOF
+
+    - name: Run backup
+      run: |
+        python tumblr_backup.py
+
+    - name: Upload to Dropbox
+      uses: dropbox/dropbox-action@v1
+      with:
+        args: upload ${{ secrets.OUTPUT_DIR }}/ /Tumblr/
+      env:
+        DROPBOX_ACCESS_TOKEN: ${{ secrets.DROPBOX_ACCESS_TOKEN }}

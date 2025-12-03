@@ -1,0 +1,8 @@
+{
+  "blog_identifier": "yourblog.tumblr.com",
+  "api_key": "your_consumer_key_here",
+  "output_dir": "backup",
+  "download_images": true,
+  "download_videos": true,
+  "download_audio": true
+}
