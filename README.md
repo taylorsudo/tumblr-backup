@@ -6,13 +6,13 @@ Automatically back up your Tumblr posts to markdown files using the Tumblr API v
 
 - Fetches all posts from your Tumblr blog
 - Converts posts to markdown format
-- Each post saved to its own file with a clean folder structure
+- Each post saved to its own file under `output_dir/YYYY/MM/DD/HH-MM-title.md` (default output_dir is `backup`)
 - **Incremental backups**: Skips already-backed-up posts
-- **Downloads attachments locally**: Images, videos, and audio files saved in post-specific attachments folders
+- **Downloads attachments locally**: Images, videos, and audio files saved in per-day `Attachments/` folders
 - Supports all post types (text, photo, quote, link, video, audio)
 - Smart attachments handling: Skips external embeds (YouTube, Vimeo, Spotify, etc.) and oversized files, keeping them as URL links
 - Respects API rate limits
-- Preserves metadata (tags, dates, URLs, post IDs)
+- Preserves metadata (dates and tags in front matter)
 
 ## Setup
 
@@ -98,22 +98,22 @@ python tumblr_backup.py
 The script will:
 1. Fetch all posts from your blog
 2. Check for existing post files and skip them
-3. Create a folder structure organized by date
-4. Download attachments to post-specific folders (if enabled)
+3. Create `output_dir/YYYY/MM/DD/` folders with filenames prefixed by the post time
+4. Download attachments into that day's `Attachments/` folder (if enabled)
 5. Save each post as an individual markdown file
 
 ### Incremental Backups
 
 The script automatically skips posts that have already been backed up by checking if the file exists. When you run the script again:
 - Only new posts are created
-- Already downloaded attachments files are skipped
+- Already downloaded attachments files in the day's `Attachments/` folder are skipped
 - No duplicate posts will be created
 
 This makes it efficient to run regularly (e.g., daily or weekly) to keep your backup up-to-date.
 
 ### Attachments Download Behavior
 
-- **Images**: All images are downloaded to the post's attachments folder
+- **Images**: All images are downloaded to the day's `Attachments/` folder
 - **Videos**:
   - Tumblr-hosted videos are downloaded (max 100MB)
   - External embeds (YouTube, Vimeo, Instagram) remain as links
@@ -129,66 +129,37 @@ This makes it efficient to run regularly (e.g., daily or weekly) to keep your ba
 
 ```
 backup/
-├── 2024/
-│   ├── 2024-01/
-│   │   ├── 2024-01-15/
-│   │   │   ├── my-first-post.md
-│   │   │   ├── another-post.md
-│   │   │   └── Attachments/
-│   │   │       ├── photo1.jpg
-│   │   │       └── photo2.png
-│   │   └── 2024-01-20/
-│   │       ├── weekend-thoughts.md
-│   │       └── Attachments/
-│   │           └── sunset.jpg
-│   └── 2024-03/
-│       └── 2024-03-05/
-│           ├── travel-update.md
-│           └── Attachments/
-│               ├── video.mp4
-│               └── audio.mp3
+└── 2025/
+    └── 12/
+        └── 04/
+            ├── 17-15-my-first-post.md
+            ├── 18-05-weekend-thoughts.md
+            └── Attachments/
+                ├── photo1.jpg
+                ├── photo2.png
+                ├── video.mp4
+                └── audio.mp3
 ```
 
 Each post gets:
-- Its own markdown file named after the post title (sanitized)
-- A `Attachments/` subfolder containing all images, videos, and audio for that specific post
+- A markdown file at `output_dir/YYYY/MM/DD/HH-MM-<sanitized-title>.md`
+- Attachments saved to `output_dir/YYYY/MM/DD/Attachments/` if downloading is enabled
+
+Folders are organized by `year/month/day`. Filenames are prefixed with the post time (`HH-MM`) followed by a sanitized title. All attachments for posts on that date are stored in the shared `Attachments/` folder and linked from each markdown file (links reference that folder as `Attachments/...`).
 
 ### Post Format
 
 Each markdown file includes:
 
-- **Front matter** with metadata (post_id, title, date, type, URL, tags)
+- **Front matter** with `date` and `tags`
 - **Content** formatted according to post type
 - **Relative attachments paths** pointing to the `Attachments/` folder
 
-Example file content (`my-first-post.md`):
+Example file content (`18-05-travel-update.md`):
 
 ```markdown
 ---
-post_id: 123456789
-title: My First Post
-date: 2024-03-15 10:30:00
-type: text
-url: https://yourblog.tumblr.com/post/123456789
-tags:
-  - example
-  - tumblr
----
-
-## My First Post
-
-This is the content of my first post...
-```
-
-Example photo post (`travel-update.md`):
-
-```markdown
----
-post_id: 123456790
-title: Travel Update
-date: 2024-03-15 14:45:00
-type: photo
-url: https://yourblog.tumblr.com/post/123456790
+date: 2025-12-04 18:05:00
 tags:
   - photo
   - travel
@@ -213,18 +184,32 @@ The repository includes a GitHub Actions workflow that automatically backs up yo
 
 ### Setup GitHub Actions with Dropbox
 
-1. **Get a Dropbox Access Token**:
+1. **Get Dropbox Credentials**:
    - Create a free [Dropbox](https://dub.sh/drop-box) account
    - Go to [Dropbox App Console](https://www.dropbox.com/developers/apps)
    - Click "Create app"
    - Choose "Scoped access"
+   - Choose "Full Dropbox" or "App folder" access
    - Name your app (e.g., your blog name)
    - Once created, go to the "Permissions" tab and enable `files.content.write` and `files.content.read`
-   - Go to the "Settings" tab and generate an access token
+   - Go to the "Settings" tab and note your **App key** and **App secret**
 
-2. **Fork or push this repository to GitHub**
+2. **Generate a Refresh Token** (recommended):
 
-3. **Configure GitHub Secrets and Variables**:
+   Run the included helper script to get a long-lived refresh token:
+   ```bash
+   python get_dropbox_refresh_token.py
+   ```
+
+   Follow the prompts:
+   - Enter your App Key and App Secret
+   - Visit the authorization URL in your browser
+   - Copy the authorization code and paste it back
+   - The script will output your `DROPBOX_REFRESH_TOKEN`
+
+3. **Fork or push this repository to GitHub**
+
+4. **Configure GitHub Secrets and Variables**:
    - Go to your repository on GitHub
    - Navigate to **Settings** → **Secrets and variables** → **Actions**
 
@@ -233,7 +218,9 @@ The repository includes a GitHub Actions workflow that automatically backs up yo
    For Public Blogs:
    - `BLOG_IDENTIFIER`: Your Tumblr username
    - `API_KEY`: Your Tumblr API Consumer Key
-   - `DROPBOX_ACCESS_TOKEN`: Your Dropbox access token from step 1
+   - `DROPBOX_APP_KEY`: Your Dropbox App Key
+   - `DROPBOX_APP_SECRET`: Your Dropbox App Secret
+   - `DROPBOX_REFRESH_TOKEN`: Your Dropbox refresh token from step 2
 
    For Private Blogs (add all of the above plus):
    - `CONSUMER_SECRET`: Your Tumblr OAuth Consumer Secret
@@ -262,6 +249,33 @@ To run a backup manually:
 1. Go to the **Actions** tab
 2. Select **Tumblr Backup** workflow
 3. Click **Run workflow**
+
+## Local Dropbox Upload
+
+You can also manually upload your backups to Dropbox from your local machine.
+
+### Setup
+
+1. **Get your Dropbox refresh token** (if you haven't already):
+   ```bash
+   python get_dropbox_refresh_token.py
+   ```
+
+2. **Set environment variables**:
+   ```bash
+   export DROPBOX_APP_KEY="your_app_key"
+   export DROPBOX_APP_SECRET="your_app_secret"
+   export DROPBOX_REFRESH_TOKEN="your_refresh_token"
+   export LOCAL_FOLDER="backup"  # optional, defaults to "backup"
+   export DROPBOX_PATH="/Tumblr"  # optional, defaults to root
+   ```
+
+3. **Upload to Dropbox**:
+   ```bash
+   python upload_to_dropbox.py
+   ```
+
+The script will upload all files from your backup folder to Dropbox. The refresh token never expires, so you can use the same credentials indefinitely.
 
 ## API Documentation
 

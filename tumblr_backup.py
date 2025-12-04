@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Tumblr Backup Script
 Backs up Tumblr posts to markdown files using the Tumblr API v2

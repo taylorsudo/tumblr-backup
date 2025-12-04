@@ -3,16 +3,22 @@ import sys
 import dropbox
 from pathlib import Path
 
-def upload_folder_to_dropbox(local_folder, dropbox_path, access_token):
+def upload_folder_to_dropbox(local_folder, dropbox_path, refresh_token, app_key, app_secret):
     """
     Upload all files from a local folder to Dropbox.
 
     Args:
         local_folder: Path to local folder to upload
         dropbox_path: Destination path in Dropbox (e.g., '/Tumblr')
-        access_token: Dropbox access token
+        refresh_token: Dropbox refresh token (never expires)
+        app_key: Dropbox app key
+        app_secret: Dropbox app secret
     """
-    dbx = dropbox.Dropbox(access_token)
+    dbx = dropbox.Dropbox(
+        oauth2_refresh_token=refresh_token,
+        app_key=app_key,
+        app_secret=app_secret
+    )
 
     # Verify the token works
     try:
@@ -95,12 +101,19 @@ def upload_large_file(dbx, file_obj, dropbox_path, file_size):
 
 if __name__ == "__main__":
     # Get configuration from environment variables
-    access_token = os.environ.get('DROPBOX_ACCESS_TOKEN')
+    refresh_token = os.environ.get('DROPBOX_REFRESH_TOKEN')
+    app_key = os.environ.get('DROPBOX_APP_KEY')
+    app_secret = os.environ.get('DROPBOX_APP_SECRET')
+
     local_folder = os.environ.get('LOCAL_FOLDER', 'backup')
     dropbox_path = os.environ.get('DROPBOX_PATH', '')
 
-    if not access_token:
-        print("ERROR: DROPBOX_ACCESS_TOKEN environment variable not set")
+    if not refresh_token or not app_key or not app_secret:
+        print("ERROR: Missing required environment variables:")
+        print("  - DROPBOX_REFRESH_TOKEN")
+        print("  - DROPBOX_APP_KEY")
+        print("  - DROPBOX_APP_SECRET")
+        print("\nRun 'python get_dropbox_refresh_token.py' to generate a refresh token.")
         sys.exit(1)
 
-    upload_folder_to_dropbox(local_folder, dropbox_path, access_token)
+    upload_folder_to_dropbox(local_folder, dropbox_path, refresh_token, app_key, app_secret)
