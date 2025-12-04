@@ -340,24 +340,22 @@ class TumblrBackup:
                 blog = trail_item.get("blog", {})
                 blog_name = blog.get("name", "unknown")
 
-                # Calculate quote level
-                # i=0 (most recent): username gets 0 quotes, content gets 1 quote
-                # i=1 (older): username gets 1 quote, content gets 2 quotes
-                username_quote_prefix = ">" * i
-                md_content.append(f"{username_quote_prefix}{blog_name}:")
+                # Add username header
+                md_content.append(f"{blog_name}:")
 
-                # Process the content blocks with quote formatting
+                # Process the content blocks with single quote level
                 trail_content = trail_item.get("content", [])
                 if trail_content:
-                    quote_level = i + 1
-                    trail_lines = self.process_npf_content_blocks(trail_content, attachments_dir, quote_level=quote_level)
+                    trail_lines = self.process_npf_content_blocks(trail_content, attachments_dir, quote_level=1)
                     md_content.extend(trail_lines)
+                    md_content.append("")
 
         # Process your own content (what you added when reblogging or original post content)
         content = post.get("content", [])
         if content:
-            # Add blank line before your content if there was a trail
+            # Add horizontal rule before your content if there was a trail
             if trail:
+                md_content.append("---")
                 md_content.append("")
             content_lines = self.process_npf_content_blocks(content, attachments_dir, quote_level=0)
             md_content.extend(content_lines)

@@ -205,16 +205,19 @@ tags:
   - reblog
 ---
 
+user1:
+>Original post content here
+>![Image](Attachments/photo.jpg)
+
 user2:
->user1:
->>Original post content here
->>![Image](Attachments/photo.jpg)
 >Added some thoughts about this
+
+---
 
 My additional commentary goes here
 ```
 
-The reblog trail shows the full chain of reblogs with markdown quote formatting, in the same style as classic Tumblr reblog chains.
+The reblog trail shows the full chain of reblogs with each person's contribution quoted, separated by a horizontal rule from your own commentary.
 
 ## Rate Limits
 
