@@ -89,6 +89,7 @@ Edit `config.json` with your details:
 - **download_videos**: Whether to download videos locally (default: true)
 - **download_audio**: Whether to download audio files locally (default: true)
 - **incremental_hours**: (Optional) Only fetch posts from the last N hours. Set to `null` for full backup (default: 5)
+- **delete_after_backup**: (Optional) Delete posts from Tumblr after successful backup. Requires OAuth credentials (default: true)
 
 ## Usage
 

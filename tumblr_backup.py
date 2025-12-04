@@ -21,7 +21,8 @@ class TumblrBackup:
     def __init__(self, blog_identifier: str, api_key: str, output_dir: str = "backup",
                  download_images: bool = True, download_videos: bool = True, download_audio: bool = True,
                  consumer_secret: Optional[str] = None, oauth_token: Optional[str] = None,
-                 oauth_token_secret: Optional[str] = None, incremental_hours: Optional[int] = 5):
+                 oauth_token_secret: Optional[str] = None, incremental_hours: Optional[int] = 5,
+                 delete_after_backup: bool = False):
         """
         Initialize the Tumblr backup tool
 
@@ -36,6 +37,7 @@ class TumblrBackup:
             oauth_token: OAuth token (required for private blogs)
             oauth_token_secret: OAuth token secret (required for private blogs)
             incremental_hours: Only fetch posts from the last N hours (default: 5, set to None for full backup)
+            delete_after_backup: Delete posts from Tumblr after successful backup (requires OAuth, default: False)
         """
         self.blog_identifier = blog_identifier
         self.api_key = api_key
@@ -45,6 +47,7 @@ class TumblrBackup:
         self.download_videos = download_videos
         self.download_audio = download_audio
         self.incremental_hours = incremental_hours
+        self.delete_after_backup = delete_after_backup
         self.tz = ZoneInfo("Australia/Sydney")
 
         # OAuth credentials for private blogs
@@ -482,6 +485,31 @@ class TumblrBackup:
 
         return "\n".join(md_content)
 
+    def delete_post(self, post_id: str) -> bool:
+        """
+        Delete a post from Tumblr
+
+        Args:
+            post_id: The ID of the post to delete
+
+        Returns:
+            True if deletion was successful, False otherwise
+        """
+        if not self.auth:
+            print("Error: OAuth authentication required for deleting posts")
+            return False
+
+        url = f"{self.base_url}/blog/{self.blog_identifier}/post/delete"
+        data = {"id": post_id}
+
+        try:
+            response = requests.post(url, data=data, auth=self.auth)
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            print(f"Error deleting post {post_id}: {e}")
+            return False
+
     def sanitize_filename(self, title: str) -> str:
         """
         Sanitize a title to be used as a filename
@@ -546,6 +574,13 @@ class TumblrBackup:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(markdown_content)
 
+        # Delete post from Tumblr if enabled
+        if self.delete_after_backup:
+            if self.delete_post(str(post_id)):
+                print(f"Deleted post {post_id} from Tumblr")
+            else:
+                print(f"Failed to delete post {post_id}")
+
     def backup(self) -> None:
         """
         Perform full backup of all posts
@@ -588,6 +623,7 @@ def main():
     download_videos = config.get("download_videos", True)
     download_audio = config.get("download_audio", True)
     incremental_hours = config.get("incremental_hours", 5)  # Default 5 hours, set to None for full backup
+    delete_after_backup = config.get("delete_after_backup", False)  # Default False, requires OAuth
 
     # OAuth credentials for private blogs
     consumer_secret = config.get("consumer_secret")
@@ -596,6 +632,11 @@ def main():
 
     if not blog_identifier or not api_key:
         print("Error: blog_identifier and api_key are required in config.json")
+        return
+
+    # Validate OAuth if delete_after_backup is enabled
+    if delete_after_backup and not all([consumer_secret, oauth_token, oauth_token_secret]):
+        print("Error: delete_after_backup requires OAuth credentials (consumer_secret, oauth_token, oauth_token_secret)")
         return
 
     # Create backup instance and run
@@ -609,7 +650,8 @@ def main():
         consumer_secret,
         oauth_token,
         oauth_token_secret,
-        incremental_hours
+        incremental_hours,
+        delete_after_backup
     )
     backup.backup()
 

@@ -16,6 +16,8 @@ jobs:
       DOWNLOAD_IMAGES: true
       DOWNLOAD_VIDEOS: true
       DOWNLOAD_AUDIO: true
+      INCREMENTAL_HOURS: 5
+      DELETE_AFTER_BACKUP: true
 
     steps:
     - name: Checkout repository
@@ -42,7 +44,9 @@ jobs:
           "output_dir": "${{ env.OUTPUT_DIR }}",
           "download_images": ${{ env.DOWNLOAD_IMAGES }},
           "download_videos": ${{ env.DOWNLOAD_VIDEOS }},
-          "download_audio": ${{ env.DOWNLOAD_AUDIO }}
+          "download_audio": ${{ env.DOWNLOAD_AUDIO }},
+          "incremental_hours": ${{ env.INCREMENTAL_HOURS }},
+          "delete_after_backup": ${{ env.DELETE_AFTER_BACKUP }}
         }
         EOF
 

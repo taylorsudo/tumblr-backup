@@ -8,5 +8,6 @@
   "download_images": true,
   "download_videos": true,
   "download_audio": true,
-  "incremental_hours": 5
+  "incremental_hours": 5,
+  "delete_after_backup": true
 }
