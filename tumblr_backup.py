@@ -335,8 +335,8 @@ class TumblrBackup:
         # Process reblog trail if it exists (for reblogs)
         trail = post.get("trail", [])
         if trail:
-            # Process trail in reverse order (most recent first, original last)
-            for i, trail_item in enumerate(reversed(trail)):
+            # Process trail in original order (original first, most recent last)
+            for i, trail_item in enumerate(trail):
                 blog = trail_item.get("blog", {})
                 blog_name = blog.get("name", "unknown")
 
