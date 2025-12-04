@@ -7,5 +7,6 @@
   "output_dir": "backup",
   "download_images": true,
   "download_videos": true,
-  "download_audio": true
+  "download_audio": true,
+  "incremental_hours": 5
 }

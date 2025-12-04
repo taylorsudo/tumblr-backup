@@ -21,7 +21,7 @@ class TumblrBackup:
     def __init__(self, blog_identifier: str, api_key: str, output_dir: str = "backup",
                  download_images: bool = True, download_videos: bool = True, download_audio: bool = True,
                  consumer_secret: Optional[str] = None, oauth_token: Optional[str] = None,
-                 oauth_token_secret: Optional[str] = None):
+                 oauth_token_secret: Optional[str] = None, incremental_hours: Optional[int] = 5):
         """
         Initialize the Tumblr backup tool
 
@@ -35,6 +35,7 @@ class TumblrBackup:
             consumer_secret: OAuth consumer secret (required for private blogs)
             oauth_token: OAuth token (required for private blogs)
             oauth_token_secret: OAuth token secret (required for private blogs)
+            incremental_hours: Only fetch posts from the last N hours (default: 5, set to None for full backup)
         """
         self.blog_identifier = blog_identifier
         self.api_key = api_key
@@ -43,6 +44,7 @@ class TumblrBackup:
         self.download_images = download_images
         self.download_videos = download_videos
         self.download_audio = download_audio
+        self.incremental_hours = incremental_hours
         self.tz = ZoneInfo("Australia/Sydney")
 
         # OAuth credentials for private blogs
@@ -97,6 +99,7 @@ class TumblrBackup:
     def fetch_all_posts(self) -> List[Dict[str, Any]]:
         """
         Fetch all posts from the blog with pagination
+        If incremental_hours is set, only fetch posts from the last N hours
 
         Returns:
             List of all posts
@@ -105,7 +108,13 @@ class TumblrBackup:
         offset = 0
         limit = 20
 
-        print(f"Fetching posts from {self.blog_identifier}...")
+        # Calculate cutoff time if incremental mode
+        cutoff_timestamp = None
+        if self.incremental_hours:
+            cutoff_timestamp = int(time.time()) - (self.incremental_hours * 3600)
+            print(f"Fetching posts from the last {self.incremental_hours} hours...")
+        else:
+            print(f"Fetching posts from {self.blog_identifier}...")
 
         while True:
             response = self.fetch_posts(limit=limit, offset=offset)
@@ -117,19 +126,34 @@ class TumblrBackup:
             if not posts:
                 break
 
-            all_posts.extend(posts)
+            # If incremental mode, filter and check if we've gone past the cutoff
+            if cutoff_timestamp:
+                # Filter posts that are newer than cutoff
+                new_posts = [p for p in posts if p.get("timestamp", 0) >= cutoff_timestamp]
+                all_posts.extend(new_posts)
+
+                # If we got fewer posts than requested, or the oldest post is before cutoff, we're done
+                if len(new_posts) < len(posts) or (posts and posts[-1].get("timestamp", 0) < cutoff_timestamp):
+                    print(f"Reached cutoff time. Total posts fetched: {len(all_posts)}")
+                    break
+            else:
+                all_posts.extend(posts)
+
             print(f"Fetched {len(all_posts)} posts so far...")
 
-            total_posts = response["response"].get("total_posts", 0)
-            if len(all_posts) >= total_posts:
-                break
+            # Check if we've fetched all posts
+            if not cutoff_timestamp:
+                total_posts = response["response"].get("total_posts", 0)
+                if len(all_posts) >= total_posts:
+                    break
 
             offset += limit
 
             # Respect rate limits (300 per minute, 1000 per hour)
             time.sleep(0.2)  # Small delay between requests
 
-        print(f"Total posts fetched: {len(all_posts)}")
+        if not cutoff_timestamp:
+            print(f"Total posts fetched: {len(all_posts)}")
         return all_posts
 
     def download_attachments(self, attachments_url: str, attachments_dir: Path) -> str:
@@ -549,6 +573,7 @@ def main():
     download_images = config.get("download_images", True)
     download_videos = config.get("download_videos", True)
     download_audio = config.get("download_audio", True)
+    incremental_hours = config.get("incremental_hours", 5)  # Default 5 hours, set to None for full backup
 
     # OAuth credentials for private blogs
     consumer_secret = config.get("consumer_secret")
@@ -569,7 +594,8 @@ def main():
         download_audio,
         consumer_secret,
         oauth_token,
-        oauth_token_secret
+        oauth_token_secret,
+        incremental_hours
     )
     backup.backup()
 

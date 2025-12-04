@@ -4,11 +4,13 @@ Automatically back up your Tumblr posts to markdown files using the Tumblr API v
 
 ## Features
 
-- Fetches all posts from your Tumblr blog
-- Converts posts to markdown format
+- Fetches all posts from your Tumblr blog (or just recent posts with incremental mode)
+- Converts posts to markdown format with full reblog trail support
 - Each post saved to its own file under `output_dir/YYYY/MM/DD/HH-MM-title.md` (default output_dir is `backup`)
 - **Incremental backups**: Skips already-backed-up posts
+- **Time-based incremental mode**: Only fetch posts from the last N hours (perfect for scheduled backups)
 - **Downloads attachments locally**: Images, videos, and audio files saved in per-day `Attachments/` folders
+- **Reblog trail formatting**: Displays full reblog chains with proper markdown quoting
 - Supports all post types (text, photo, quote, link, video, audio)
 - Smart attachments handling: Skips external embeds (YouTube, Vimeo, Spotify, etc.) and oversized files, keeping them as URL links
 - Respects API rate limits
@@ -86,6 +88,7 @@ Edit `config.json` with your details:
 - **download_images**: Whether to download images locally (default: true)
 - **download_videos**: Whether to download videos locally (default: true)
 - **download_audio**: Whether to download audio files locally (default: true)
+- **incremental_hours**: (Optional) Only fetch posts from the last N hours. Set to `null` for full backup (default: 5)
 
 ## Usage
 
@@ -110,6 +113,28 @@ The script automatically skips posts that have already been backed up by checkin
 - No duplicate posts will be created
 
 This makes it efficient to run regularly (e.g., daily or weekly) to keep your backup up-to-date.
+
+### Time-Based Incremental Mode
+
+For scheduled backups that run frequently, you can use time-based incremental mode to only fetch recent posts:
+
+```json
+{
+  "blog_identifier": "yourblog",
+  "api_key": "your_consumer_key_here",
+  "incremental_hours": 5
+}
+```
+
+With `incremental_hours` set to 5:
+- Only posts from the last 5 hours are fetched from the API
+- Dramatically reduces API calls and processing time
+- Perfect for automated backups that run every 4 hours (with a 1-hour buffer)
+- Already-backed-up posts are still skipped via file checking
+
+**When to use:**
+- **Full backup** (`"incremental_hours": null`): First run, or occasional full sync
+- **Incremental mode** (default, `incremental_hours: 5`): Scheduled backups running every few hours
 
 ### Attachments Download Behavior
 
@@ -152,10 +177,11 @@ Folders are organized by `year/month/day`. Filenames are prefixed with the post 
 Each markdown file includes:
 
 - **Front matter** with `date` and `tags`
+- **Reblog trail** (if the post is a reblog) with proper quote formatting
 - **Content** formatted according to post type
 - **Relative attachments paths** pointing to the `Attachments/` folder
 
-Example file content (`18-05-travel-update.md`):
+Example original post (`18-05-travel-update.md`):
 
 ```markdown
 ---
@@ -169,6 +195,26 @@ Check out this amazing photo from my trip!
 
 ![Photo](Attachments/sunset.jpg)
 ```
+
+Example reblog with trail (`19-30-reblogged-post.md`):
+
+```markdown
+---
+date: 2025-12-04 19:30:00
+tags:
+  - reblog
+---
+
+user2:
+>user1:
+>>Original post content here
+>>![Image](Attachments/photo.jpg)
+>Added some thoughts about this
+
+My additional commentary goes here
+```
+
+The reblog trail shows the full chain of reblogs with markdown quote formatting, in the same style as classic Tumblr reblog chains.
 
 ## Rate Limits
 
