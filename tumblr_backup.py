@@ -233,7 +233,7 @@ class TumblrBackup:
         lines = []
         quote_prefix = ">" * quote_level if quote_level > 0 else ""
 
-        for block in blocks:
+        for i, block in enumerate(blocks):
             block_type = block.get("type", "")
 
             if block_type == "text":
@@ -258,6 +258,10 @@ class TumblrBackup:
                     for line in text.split("\n"):
                         lines.append(f"{quote_prefix}{line}")
 
+                    # Add blank line after text block if not the last block
+                    if i < len(blocks) - 1:
+                        lines.append(quote_prefix.rstrip() if quote_prefix else "")
+
             elif block_type == "image":
                 media = block.get("media", [])
                 if media:
@@ -270,6 +274,10 @@ class TumblrBackup:
                         else:
                             lines.append(f"{quote_prefix}![Image]({url})")
 
+                        # Add blank line after image if not the last block
+                        if i < len(blocks) - 1:
+                            lines.append(quote_prefix.rstrip() if quote_prefix else "")
+
             elif block_type == "video":
                 media = block.get("media", {})
                 url = media.get("url", "")
@@ -279,6 +287,10 @@ class TumblrBackup:
                         lines.append(f"{quote_prefix}[Video]({video_path})")
                     else:
                         lines.append(f"{quote_prefix}[Video]({url})")
+
+                    # Add blank line after video if not the last block
+                    if i < len(blocks) - 1:
+                        lines.append(quote_prefix.rstrip() if quote_prefix else "")
 
             elif block_type == "audio":
                 media = block.get("media", {})
@@ -290,11 +302,19 @@ class TumblrBackup:
                     else:
                         lines.append(f"{quote_prefix}[Audio]({url})")
 
+                    # Add blank line after audio if not the last block
+                    if i < len(blocks) - 1:
+                        lines.append(quote_prefix.rstrip() if quote_prefix else "")
+
             elif block_type == "link":
                 url = block.get("url", "")
                 title = block.get("title", url)
                 if url:
                     lines.append(f"{quote_prefix}[{title}]({url})")
+
+                    # Add blank line after link if not the last block
+                    if i < len(blocks) - 1:
+                        lines.append(quote_prefix.rstrip() if quote_prefix else "")
 
         return lines
 
