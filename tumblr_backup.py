@@ -233,7 +233,6 @@ class TumblrBackup:
                     # Split text into lines and add quote prefix to each
                     for line in text.split("\n"):
                         lines.append(f"{quote_prefix}{line}")
-                    lines.append(quote_prefix.rstrip())
 
             elif block_type == "image":
                 media = block.get("media", [])
@@ -246,7 +245,6 @@ class TumblrBackup:
                             lines.append(f"{quote_prefix}![Image]({image_path})")
                         else:
                             lines.append(f"{quote_prefix}![Image]({url})")
-                        lines.append(quote_prefix.rstrip())
 
             elif block_type == "video":
                 media = block.get("media", {})
@@ -257,7 +255,6 @@ class TumblrBackup:
                         lines.append(f"{quote_prefix}[Video]({video_path})")
                     else:
                         lines.append(f"{quote_prefix}[Video]({url})")
-                    lines.append(quote_prefix.rstrip())
 
             elif block_type == "audio":
                 media = block.get("media", {})
@@ -268,14 +265,12 @@ class TumblrBackup:
                         lines.append(f"{quote_prefix}[Audio]({audio_path})")
                     else:
                         lines.append(f"{quote_prefix}[Audio]({url})")
-                    lines.append(quote_prefix.rstrip())
 
             elif block_type == "link":
                 url = block.get("url", "")
                 title = block.get("title", url)
                 if url:
                     lines.append(f"{quote_prefix}[{title}]({url})")
-                    lines.append(quote_prefix.rstrip())
 
         return lines
 
@@ -334,11 +329,13 @@ class TumblrBackup:
                 if trail_content:
                     trail_lines = self.process_npf_content_blocks(trail_content, attachments_dir, quote_level=quote_level)
                     md_content.extend(trail_lines)
-                    md_content.append("")
 
         # Process your own content (what you added when reblogging or original post content)
         content = post.get("content", [])
         if content:
+            # Add blank line before your content if there was a trail
+            if trail:
+                md_content.append("")
             content_lines = self.process_npf_content_blocks(content, attachments_dir, quote_level=0)
             md_content.extend(content_lines)
 
