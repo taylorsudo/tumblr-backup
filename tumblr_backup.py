@@ -194,6 +194,91 @@ class TumblrBackup:
             return any(domain in url.lower() for domain in ['spotify.com', 'soundcloud.com', 'bandcamp.com'])
         return False
 
+    def process_npf_content_blocks(self, blocks: List[Dict[str, Any]], attachments_dir: Path, quote_level: int = 0) -> List[str]:
+        """
+        Process NPF content blocks and convert them to markdown
+
+        Args:
+            blocks: List of NPF content blocks
+            attachments_dir: Directory to save attachments files
+            quote_level: Level of quote nesting (0 = no quotes, 1 = >, 2 = >>, etc.)
+
+        Returns:
+            List of markdown lines
+        """
+        lines = []
+        quote_prefix = "> " * quote_level if quote_level > 0 else ""
+
+        for block in blocks:
+            block_type = block.get("type", "")
+
+            if block_type == "text":
+                text = block.get("text", "")
+                if text:
+                    # Handle formatting
+                    subtype = block.get("subtype", "")
+
+                    # Apply subtype formatting (headings, etc.)
+                    if subtype == "heading1":
+                        text = f"# {text}"
+                    elif subtype == "heading2":
+                        text = f"## {text}"
+                    elif subtype == "quote":
+                        text = f"> {text}"
+                    elif subtype == "indented":
+                        text = f"  {text}"
+                    elif subtype == "chat":
+                        text = f"**{text}**"
+
+                    # Split text into lines and add quote prefix to each
+                    for line in text.split("\n"):
+                        lines.append(f"{quote_prefix}{line}")
+                    lines.append(quote_prefix.rstrip())
+
+            elif block_type == "image":
+                media = block.get("media", [])
+                if media:
+                    # Get the largest available size
+                    url = media[0].get("url", "")
+                    if url:
+                        if self.download_images:
+                            image_path = self.download_attachments(url, attachments_dir)
+                            lines.append(f"{quote_prefix}![Image]({image_path})")
+                        else:
+                            lines.append(f"{quote_prefix}![Image]({url})")
+                        lines.append(quote_prefix.rstrip())
+
+            elif block_type == "video":
+                media = block.get("media", {})
+                url = media.get("url", "")
+                if url:
+                    if self.download_videos and not self.is_external_attachments(url, "video"):
+                        video_path = self.download_attachments(url, attachments_dir)
+                        lines.append(f"{quote_prefix}[Video]({video_path})")
+                    else:
+                        lines.append(f"{quote_prefix}[Video]({url})")
+                    lines.append(quote_prefix.rstrip())
+
+            elif block_type == "audio":
+                media = block.get("media", {})
+                url = media.get("url", "")
+                if url:
+                    if self.download_audio and not self.is_external_attachments(url, "audio"):
+                        audio_path = self.download_attachments(url, attachments_dir)
+                        lines.append(f"{quote_prefix}[Audio]({audio_path})")
+                    else:
+                        lines.append(f"{quote_prefix}[Audio]({url})")
+                    lines.append(quote_prefix.rstrip())
+
+            elif block_type == "link":
+                url = block.get("url", "")
+                title = block.get("title", url)
+                if url:
+                    lines.append(f"{quote_prefix}[{title}]({url})")
+                    lines.append(quote_prefix.rstrip())
+
+        return lines
+
     def convert_to_markdown(self, post: Dict[str, Any], attachments_dir: Path) -> str:
         """
         Convert a Tumblr post to markdown format
@@ -228,149 +313,136 @@ class TumblrBackup:
         md_content.append("---")
         md_content.append("")
 
-        # Handle different post types
-        if post_type == "text":
-            title = post.get("title", "")
-            if title:
-                md_content.append(f"## {title}")
-                md_content.append("")
-            body = post.get("body", "")
-            md_content.append(body)
+        # Process reblog trail if it exists (for reblogs)
+        trail = post.get("trail", [])
+        if trail:
+            for i, trail_item in enumerate(trail):
+                blog = trail_item.get("blog", {})
+                blog_name = blog.get("name", "unknown")
 
-        elif post_type == "photo":
-            caption = post.get("caption", "")
-            if caption:
-                md_content.append(caption)
+                # Add attribution header (outside quote block)
+                md_content.append(f"{blog_name}:")
+
+                # Process the content blocks with quote formatting
+                # Quote level increases with each person in the trail
+                trail_content = trail_item.get("content", [])
+                if trail_content:
+                    # Calculate quote level: later items in trail are more deeply nested
+                    quote_level = len(trail) - i
+                    trail_lines = self.process_npf_content_blocks(trail_content, attachments_dir, quote_level=quote_level)
+                    md_content.extend(trail_lines)
+
                 md_content.append("")
 
-            photos = post.get("photos", [])
-            for photo in photos:
-                original_size = photo.get("original_size", {})
-                url = original_size.get("url", "")
-                if url:
-                    # Download image if enabled
-                    if self.download_images:
-                        image_path = self.download_attachments(url, attachments_dir)
-                        md_content.append(f"![Photo]({image_path})")
-                    else:
-                        md_content.append(f"![Photo]({url})")
+        # Process your own content (what you added when reblogging or original post content)
+        content = post.get("content", [])
+        if content:
+            content_lines = self.process_npf_content_blocks(content, attachments_dir, quote_level=0)
+            md_content.extend(content_lines)
+
+        # Fallback to legacy post type handling if no NPF content
+        if not trail and not content:
+            if post_type == "text":
+                title = post.get("title", "")
+                if title:
+                    md_content.append(f"## {title}")
+                    md_content.append("")
+                body = post.get("body", "")
+                md_content.append(body)
+
+            elif post_type == "photo":
+                caption = post.get("caption", "")
+                if caption:
+                    md_content.append(caption)
                     md_content.append("")
 
-        elif post_type == "quote":
-            text = post.get("text", "")
-            source = post.get("source", "")
-            md_content.append(f"> {text}")
-            md_content.append("")
-            if source:
-                md_content.append(f"— {source}")
-                md_content.append("")
+                photos = post.get("photos", [])
 
-        elif post_type == "link":
-            title = post.get("title", "")
-            url = post.get("url", "")
-            description = post.get("description", "")
-            md_content.append(f"## [{title}]({url})")
-            md_content.append("")
-            if description:
-                md_content.append(description)
-                md_content.append("")
-
-        elif post_type == "video":
-            caption = post.get("caption", "")
-            if caption:
-                md_content.append(caption)
-                md_content.append("")
-
-            # Try to get video URL from different possible fields
-            video_url = post.get("video_url", "")
-            if not video_url and "player" in post:
-                players = post.get("player", [])
-                if players and isinstance(players, list):
-                    video_url = players[-1].get("embed_code", "")
-                    # Extract URL from embed code if needed
-                    if video_url and "src=" in video_url:
-                        import re
-                        match = re.search(r'src="([^"]+)"', video_url)
-                        if match:
-                            video_url = match.group(1)
-
-            if video_url:
-                # Download video if enabled and not external
-                if self.download_videos and not self.is_external_attachments(video_url, "video"):
-                    video_path = self.download_attachments(video_url, attachments_dir)
-                    md_content.append(f"[Video]({video_path})")
-                else:
-                    md_content.append(f"[Video]({video_url})")
-                md_content.append("")
-
-        elif post_type == "audio":
-            caption = post.get("caption", "")
-            artist = post.get("artist", "")
-            track_name = post.get("track_name", "")
-
-            if artist or track_name:
-                md_content.append(f"## {artist} - {track_name}")
-                md_content.append("")
-            if caption:
-                md_content.append(caption)
-                md_content.append("")
-
-            # Try to get audio URL
-            audio_url = post.get("audio_url", "")
-            if not audio_url and "audio_source_url" in post:
-                audio_url = post.get("audio_source_url", "")
-
-            if audio_url:
-                # Download audio if enabled and not external
-                if self.download_audio and not self.is_external_attachments(audio_url, "audio"):
-                    audio_path = self.download_attachments(audio_url, attachments_dir)
-                    md_content.append(f"[Audio]({audio_path})")
-                else:
-                    md_content.append(f"[Audio]({audio_url})")
-                md_content.append("")
-
-        else:
-            # Fallback for other types or NPF content
-            if "content" in post:
-                for block in post.get("content", []):
-                    block_type = block.get("type", "")
-                    if block_type == "text":
-                        text = block.get("text", "")
-                        md_content.append(text)
+                # Legacy photos field
+                for photo in photos:
+                    original_size = photo.get("original_size", {})
+                    url = original_size.get("url", "")
+                    if url:
+                        # Download image if enabled
+                        if self.download_images:
+                            image_path = self.download_attachments(url, attachments_dir)
+                            md_content.append(f"![Photo]({image_path})")
+                        else:
+                            md_content.append(f"![Photo]({url})")
                         md_content.append("")
-                    elif block_type == "image":
-                        attachments = block.get("attachments", [{}])[0]
-                        url = attachments.get("url", "")
-                        if url:
-                            # Download image if enabled
-                            if self.download_images:
-                                image_path = self.download_attachments(url, attachments_dir)
-                                md_content.append(f"![Image]({image_path})")
-                            else:
-                                md_content.append(f"![Image]({url})")
-                            md_content.append("")
-                    elif block_type == "video":
-                        attachments = block.get("attachments", {})
-                        url = attachments.get("url", "")
-                        if url:
-                            # Download video if enabled and not external
-                            if self.download_videos and not self.is_external_attachments(url, "video"):
-                                video_path = self.download_attachments(url, attachments_dir)
-                                md_content.append(f"[Video]({video_path})")
-                            else:
-                                md_content.append(f"[Video]({url})")
-                            md_content.append("")
-                    elif block_type == "audio":
-                        attachments = block.get("attachments", {})
-                        url = attachments.get("url", "")
-                        if url:
-                            # Download audio if enabled and not external
-                            if self.download_audio and not self.is_external_attachments(url, "audio"):
-                                audio_path = self.download_attachments(url, attachments_dir)
-                                md_content.append(f"[Audio]({audio_path})")
-                            else:
-                                md_content.append(f"[Audio]({url})")
-                            md_content.append("")
+
+            elif post_type == "quote":
+                text = post.get("text", "")
+                source = post.get("source", "")
+                md_content.append(f"> {text}")
+                md_content.append("")
+                if source:
+                    md_content.append(f"— {source}")
+                    md_content.append("")
+
+            elif post_type == "link":
+                title = post.get("title", "")
+                url = post.get("url", "")
+                description = post.get("description", "")
+                md_content.append(f"## [{title}]({url})")
+                md_content.append("")
+                if description:
+                    md_content.append(description)
+                    md_content.append("")
+
+            elif post_type == "video":
+                caption = post.get("caption", "")
+                if caption:
+                    md_content.append(caption)
+                    md_content.append("")
+
+                # Try to get video URL from different possible fields
+                video_url = post.get("video_url", "")
+                if not video_url and "player" in post:
+                    players = post.get("player", [])
+                    if players and isinstance(players, list):
+                        video_url = players[-1].get("embed_code", "")
+                        # Extract URL from embed code if needed
+                        if video_url and "src=" in video_url:
+                            import re
+                            match = re.search(r'src="([^"]+)"', video_url)
+                            if match:
+                                video_url = match.group(1)
+
+                if video_url:
+                    # Download video if enabled and not external
+                    if self.download_videos and not self.is_external_attachments(video_url, "video"):
+                        video_path = self.download_attachments(video_url, attachments_dir)
+                        md_content.append(f"[Video]({video_path})")
+                    else:
+                        md_content.append(f"[Video]({video_url})")
+                    md_content.append("")
+
+            elif post_type == "audio":
+                caption = post.get("caption", "")
+                artist = post.get("artist", "")
+                track_name = post.get("track_name", "")
+
+                if artist or track_name:
+                    md_content.append(f"## {artist} - {track_name}")
+                    md_content.append("")
+                if caption:
+                    md_content.append(caption)
+                    md_content.append("")
+
+                # Try to get audio URL
+                audio_url = post.get("audio_url", "")
+                if not audio_url and "audio_source_url" in post:
+                    audio_url = post.get("audio_source_url", "")
+
+                if audio_url:
+                    # Download audio if enabled and not external
+                    if self.download_audio and not self.is_external_attachments(audio_url, "audio"):
+                        audio_path = self.download_attachments(audio_url, attachments_dir)
+                        md_content.append(f"[Audio]({audio_path})")
+                    else:
+                        md_content.append(f"[Audio]({audio_url})")
+                    md_content.append("")
 
         return "\n".join(md_content)
 
