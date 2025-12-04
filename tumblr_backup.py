@@ -320,19 +320,21 @@ class TumblrBackup:
                 blog = trail_item.get("blog", {})
                 blog_name = blog.get("name", "unknown")
 
-                # Add attribution header (outside quote block)
-                md_content.append(f"{blog_name}:")
+                # Calculate quote level: each item in trail is quoted based on who comes after
+                # Last item in trail (most recent before you) has quote_level=1
+                # First item in trail (original) has quote_level=len(trail)
+                quote_level = len(trail) - i
+
+                # Add attribution header with appropriate quote level
+                quote_prefix = "> " * (quote_level - 1) if quote_level > 1 else ""
+                md_content.append(f"{quote_prefix}{blog_name}:")
 
                 # Process the content blocks with quote formatting
-                # Quote level increases with each person in the trail
                 trail_content = trail_item.get("content", [])
                 if trail_content:
-                    # Calculate quote level: later items in trail are more deeply nested
-                    quote_level = len(trail) - i
                     trail_lines = self.process_npf_content_blocks(trail_content, attachments_dir, quote_level=quote_level)
                     md_content.extend(trail_lines)
-
-                md_content.append("")
+                    md_content.append("")
 
         # Process your own content (what you added when reblogging or original post content)
         content = post.get("content", [])
@@ -501,7 +503,7 @@ class TumblrBackup:
             return
 
         # Create attachments directory for this post
-        attachments_dir = post_dir / "attachments"
+        attachments_dir = post_dir / "Attachments"
 
         # Convert to markdown
         markdown_content = self.convert_to_markdown(post, attachments_dir)
