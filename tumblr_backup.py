@@ -311,23 +311,21 @@ class TumblrBackup:
         # Process reblog trail if it exists (for reblogs)
         trail = post.get("trail", [])
         if trail:
-            for i, trail_item in enumerate(trail):
+            # Process trail in reverse order (most recent first, original last)
+            for i, trail_item in enumerate(reversed(trail)):
                 blog = trail_item.get("blog", {})
                 blog_name = blog.get("name", "unknown")
 
-                # Calculate quote level: each item in trail is quoted based on who comes after
-                # Last item in trail (most recent before you) has quote_level=1
-                # First item in trail (original) has quote_level=len(trail)
-                quote_level = len(trail) - i
-
-                # Add attribution header with appropriate quote level
-                # Username gets quote_level - 1 quotes
-                username_quote_prefix = ">" * (quote_level - 1) if quote_level > 1 else ""
+                # Calculate quote level
+                # i=0 (most recent): username gets 0 quotes, content gets 1 quote
+                # i=1 (older): username gets 1 quote, content gets 2 quotes
+                username_quote_prefix = ">" * i
                 md_content.append(f"{username_quote_prefix}{blog_name}:")
 
                 # Process the content blocks with quote formatting
                 trail_content = trail_item.get("content", [])
                 if trail_content:
+                    quote_level = i + 1
                     trail_lines = self.process_npf_content_blocks(trail_content, attachments_dir, quote_level=quote_level)
                     md_content.extend(trail_lines)
 
