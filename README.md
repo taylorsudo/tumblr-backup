@@ -228,7 +228,7 @@ A small delay is added between requests to stay within limits.
 
 ## Automated Backups with GitHub Actions
 
-The repository includes a GitHub Actions workflow that automatically backs up your posts every 4 hours and uploads them to Dropbox.
+The repository includes a GitHub Actions workflow that automatically backs up your posts daily and uploads them to Dropbox.
 
 ### Setup GitHub Actions with Dropbox
 
@@ -285,7 +285,7 @@ The repository includes a GitHub Actions workflow that automatically backs up yo
 
 ### How It Works
 
-- The workflow runs automatically every 4 hours
+- The workflow runs automatically daily at 12:00 AM Sydney time
 - You can also trigger it manually from the Actions tab
 - New posts and attachments are uploaded to Dropbox
 - Existing posts are skipped (incremental backup)
