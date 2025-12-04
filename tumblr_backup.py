@@ -207,7 +207,7 @@ class TumblrBackup:
             List of markdown lines
         """
         lines = []
-        quote_prefix = "> " * quote_level if quote_level > 0 else ""
+        quote_prefix = ">" * quote_level if quote_level > 0 else ""
 
         for block in blocks:
             block_type = block.get("type", "")
@@ -321,8 +321,9 @@ class TumblrBackup:
                 quote_level = len(trail) - i
 
                 # Add attribution header with appropriate quote level
-                quote_prefix = "> " * (quote_level - 1) if quote_level > 1 else ""
-                md_content.append(f"{quote_prefix}{blog_name}:")
+                # Username gets quote_level - 1 quotes
+                username_quote_prefix = ">" * (quote_level - 1) if quote_level > 1 else ""
+                md_content.append(f"{username_quote_prefix}{blog_name}:")
 
                 # Process the content blocks with quote formatting
                 trail_content = trail_item.get("content", [])
