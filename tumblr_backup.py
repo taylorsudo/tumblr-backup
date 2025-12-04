@@ -411,13 +411,13 @@ class TumblrBackup:
             title = f"post-{post_id}"
         safe_title = self.sanitize_filename(title)
 
-        # Create directory structure: yyyy/yyyy-mm/yyyy-mm-dd/
+        # Create directory structure: yyyy/mm/dd/
         year = date.strftime("%Y")
-        year_month = date.strftime("%Y-%m")
-        date_str = date.strftime("%Y-%m-%d")
+        month = date.strftime("%m")
+        day = date.strftime("%d")
         time_str = date.strftime("%H-%M")
 
-        post_dir = self.output_dir / year / year_month / date_str
+        post_dir = self.output_dir / year / month / day
         post_dir.mkdir(parents=True, exist_ok=True)
 
         # Create filename
