@@ -353,10 +353,6 @@ class TumblrBackup:
         # Process your own content (what you added when reblogging or original post content)
         content = post.get("content", [])
         if content:
-            # Add horizontal rule before your content if there was a trail
-            if trail:
-                md_content.append("---")
-                md_content.append("")
             content_lines = self.process_npf_content_blocks(content, attachments_dir, quote_level=0)
             md_content.extend(content_lines)
 

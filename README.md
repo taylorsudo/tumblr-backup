@@ -212,12 +212,10 @@ user1:
 user2:
 >Added some thoughts about this
 
----
-
 My additional commentary goes here
 ```
 
-The reblog trail shows the full chain of reblogs with each person's contribution quoted, separated by a horizontal rule from your own commentary.
+The reblog trail shows the full chain of reblogs with each person's contribution quoted, followed by your own commentary.
 
 ## Rate Limits
 
