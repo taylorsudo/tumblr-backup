@@ -8,9 +8,9 @@ Automatically back up your Tumblr posts to markdown files using the Tumblr API v
 - Converts posts to markdown format
 - Each post saved to its own file with a clean folder structure
 - **Incremental backups**: Skips already-backed-up posts
-- **Downloads media locally**: Images, videos, and audio files saved in post-specific media folders
+- **Downloads attachments locally**: Images, videos, and audio files saved in post-specific attachments folders
 - Supports all post types (text, photo, quote, link, video, audio)
-- Smart media handling: Skips external embeds (YouTube, Vimeo, Spotify, etc.) and oversized files, keeping them as URL links
+- Smart attachments handling: Skips external embeds (YouTube, Vimeo, Spotify, etc.) and oversized files, keeping them as URL links
 - Respects API rate limits
 - Preserves metadata (tags, dates, URLs, post IDs)
 
@@ -99,21 +99,21 @@ The script will:
 1. Fetch all posts from your blog
 2. Check for existing post files and skip them
 3. Create a folder structure organized by date
-4. Download media to post-specific folders (if enabled)
+4. Download attachments to post-specific folders (if enabled)
 5. Save each post as an individual markdown file
 
 ### Incremental Backups
 
 The script automatically skips posts that have already been backed up by checking if the file exists. When you run the script again:
 - Only new posts are created
-- Already downloaded media files are skipped
+- Already downloaded attachments files are skipped
 - No duplicate posts will be created
 
 This makes it efficient to run regularly (e.g., daily or weekly) to keep your backup up-to-date.
 
-### Media Download Behavior
+### Attachments Download Behavior
 
-- **Images**: All images are downloaded to the post's media folder
+- **Images**: All images are downloaded to the post's attachments folder
 - **Videos**:
   - Tumblr-hosted videos are downloaded (max 100MB)
   - External embeds (YouTube, Vimeo, Instagram) remain as links
@@ -134,24 +134,24 @@ backup/
 │   │   ├── 2024-01-15/
 │   │   │   ├── my-first-post.md
 │   │   │   ├── another-post.md
-│   │   │   └── media/
+│   │   │   └── Attachments/
 │   │   │       ├── photo1.jpg
 │   │   │       └── photo2.png
 │   │   └── 2024-01-20/
 │   │       ├── weekend-thoughts.md
-│   │       └── media/
+│   │       └── Attachments/
 │   │           └── sunset.jpg
 │   └── 2024-03/
 │       └── 2024-03-05/
 │           ├── travel-update.md
-│           └── media/
+│           └── Attachments/
 │               ├── video.mp4
 │               └── audio.mp3
 ```
 
 Each post gets:
 - Its own markdown file named after the post title (sanitized)
-- A `media/` subfolder containing all images, videos, and audio for that specific post
+- A `Attachments/` subfolder containing all images, videos, and audio for that specific post
 
 ### Post Format
 
@@ -159,7 +159,7 @@ Each markdown file includes:
 
 - **Front matter** with metadata (post_id, title, date, type, URL, tags)
 - **Content** formatted according to post type
-- **Relative media paths** pointing to the `media/` folder
+- **Relative attachments paths** pointing to the `Attachments/` folder
 
 Example file content (`my-first-post.md`):
 
@@ -196,7 +196,7 @@ tags:
 
 Check out this amazing photo from my trip!
 
-![Photo](media/sunset.jpg)
+![Photo](Attachments/sunset.jpg)
 ```
 
 ## Rate Limits
@@ -240,9 +240,9 @@ The repository includes a GitHub Actions workflow that automatically backs up yo
    - `OAUTH_TOKEN`: Your Tumblr OAuth Token
    - `OAUTH_TOKEN_SECRET`: Your Tumblr OAuth Token Secret
 
-   **Optional: Adjust media download flags in the workflow file**:
+   **Optional: Adjust attachments download flags in the workflow file**:
    - Open `.github/workflows/backup.yml`
-   - In the `env` block, set `DOWNLOAD_IMAGES`, `DOWNLOAD_VIDEOS`, and `DOWNLOAD_AUDIO` to `false` if you want to skip downloading that media type (all default to `true`)
+   - In the `env` block, set `DOWNLOAD_IMAGES`, `DOWNLOAD_VIDEOS`, and `DOWNLOAD_AUDIO` to `false` if you want to skip downloading that attachments type (all default to `true`)
 
 4. **Enable GitHub Actions**:
    - Go to the **Actions** tab in your repository
@@ -252,7 +252,7 @@ The repository includes a GitHub Actions workflow that automatically backs up yo
 
 - The workflow runs automatically every 4 hours
 - You can also trigger it manually from the Actions tab
-- New posts and media are uploaded to Dropbox
+- New posts and attachments are uploaded to Dropbox
 - Existing posts are skipped (incremental backup)
 - Files are synced to your Dropbox account automatically
 

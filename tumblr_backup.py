@@ -132,75 +132,75 @@ class TumblrBackup:
         print(f"Total posts fetched: {len(all_posts)}")
         return all_posts
 
-    def download_media(self, media_url: str, media_dir: Path) -> str:
+    def download_attachments(self, attachments_url: str, attachments_dir: Path) -> str:
         """
-        Download a media file and save it locally
+        Download a attachments file and save it locally
 
         Args:
-            media_url: URL of the media to download
-            media_dir: Directory to save the media file
+            attachments_url: URL of the attachments to download
+            attachments_dir: Directory to save the attachments file
 
         Returns:
-            Relative path to the saved media file
+            Relative path to the saved attachments file
         """
         try:
             # Parse URL to get filename
-            parsed_url = urlparse(media_url)
+            parsed_url = urlparse(attachments_url)
             filename = os.path.basename(parsed_url.path)
 
-            # Ensure media directory exists
-            media_dir.mkdir(parents=True, exist_ok=True)
+            # Ensure attachments directory exists
+            attachments_dir.mkdir(parents=True, exist_ok=True)
 
-            media_path = media_dir / filename
+            attachments_path = attachments_dir / filename
 
             # Skip if already downloaded
-            if media_path.exists():
-                return f"media/{filename}"
+            if attachments_path.exists():
+                return f"Attachments/{filename}"
 
-            # Download the media
-            response = requests.get(media_url, timeout=30, stream=True)
+            # Download the attachments
+            response = requests.get(attachments_url, timeout=30, stream=True)
             response.raise_for_status()
 
             # Check file size (skip if > 100MB)
             content_length = response.headers.get('content-length')
             if content_length and int(content_length) > 100 * 1024 * 1024:
                 print(f"Warning: File too large (>100MB), skipping.")
-                return media_url
+                return attachments_url
 
-            with open(media_path, "wb") as f:
+            with open(attachments_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
 
-            return f"media/{filename}"
+            return f"Attachments/{filename}"
 
         except Exception as e:
-            print(f"Warning: Failed to download media: {e}")
-            return media_url  # Return original URL as fallback
+            print(f"Warning: Failed to download attachments: {e}")
+            return attachments_url  # Return original URL as fallback
 
-    def is_external_media(self, url: str, media_type: str) -> bool:
+    def is_external_attachments(self, url: str, attachments_type: str) -> bool:
         """
-        Check if media URL is external (YouTube, Vimeo, Spotify, etc.)
+        Check if attachments URL is external (YouTube, Vimeo, Spotify, etc.)
 
         Args:
-            url: Media URL
-            media_type: Type of media (video or audio)
+            url: Attachments URL
+            attachments_type: Type of attachments (video or audio)
 
         Returns:
             True if external, False otherwise
         """
-        if media_type == "video":
+        if attachments_type == "video":
             return any(domain in url.lower() for domain in ['youtube.com', 'youtu.be', 'vimeo.com', 'instagram.com'])
-        elif media_type == "audio":
+        elif attachments_type == "audio":
             return any(domain in url.lower() for domain in ['spotify.com', 'soundcloud.com', 'bandcamp.com'])
         return False
 
-    def convert_to_markdown(self, post: Dict[str, Any], media_dir: Path) -> str:
+    def convert_to_markdown(self, post: Dict[str, Any], attachments_dir: Path) -> str:
         """
         Convert a Tumblr post to markdown format
 
         Args:
             post: Post data from API
-            media_dir: Directory to save media files for this post
+            attachments_dir: Directory to save attachments files for this post
 
         Returns:
             Markdown formatted string
@@ -250,7 +250,7 @@ class TumblrBackup:
                 if url:
                     # Download image if enabled
                     if self.download_images:
-                        image_path = self.download_media(url, media_dir)
+                        image_path = self.download_attachments(url, attachments_dir)
                         md_content.append(f"![Photo]({image_path})")
                     else:
                         md_content.append(f"![Photo]({url})")
@@ -296,8 +296,8 @@ class TumblrBackup:
 
             if video_url:
                 # Download video if enabled and not external
-                if self.download_videos and not self.is_external_media(video_url, "video"):
-                    video_path = self.download_media(video_url, media_dir)
+                if self.download_videos and not self.is_external_attachments(video_url, "video"):
+                    video_path = self.download_attachments(video_url, attachments_dir)
                     md_content.append(f"[Video]({video_path})")
                 else:
                     md_content.append(f"[Video]({video_url})")
@@ -322,8 +322,8 @@ class TumblrBackup:
 
             if audio_url:
                 # Download audio if enabled and not external
-                if self.download_audio and not self.is_external_media(audio_url, "audio"):
-                    audio_path = self.download_media(audio_url, media_dir)
+                if self.download_audio and not self.is_external_attachments(audio_url, "audio"):
+                    audio_path = self.download_attachments(audio_url, attachments_dir)
                     md_content.append(f"[Audio]({audio_path})")
                 else:
                     md_content.append(f"[Audio]({audio_url})")
@@ -339,34 +339,34 @@ class TumblrBackup:
                         md_content.append(text)
                         md_content.append("")
                     elif block_type == "image":
-                        media = block.get("media", [{}])[0]
-                        url = media.get("url", "")
+                        attachments = block.get("attachments", [{}])[0]
+                        url = attachments.get("url", "")
                         if url:
                             # Download image if enabled
                             if self.download_images:
-                                image_path = self.download_media(url, media_dir)
+                                image_path = self.download_attachments(url, attachments_dir)
                                 md_content.append(f"![Image]({image_path})")
                             else:
                                 md_content.append(f"![Image]({url})")
                             md_content.append("")
                     elif block_type == "video":
-                        media = block.get("media", {})
-                        url = media.get("url", "")
+                        attachments = block.get("attachments", {})
+                        url = attachments.get("url", "")
                         if url:
                             # Download video if enabled and not external
-                            if self.download_videos and not self.is_external_media(url, "video"):
-                                video_path = self.download_media(url, media_dir)
+                            if self.download_videos and not self.is_external_attachments(url, "video"):
+                                video_path = self.download_attachments(url, attachments_dir)
                                 md_content.append(f"[Video]({video_path})")
                             else:
                                 md_content.append(f"[Video]({url})")
                             md_content.append("")
                     elif block_type == "audio":
-                        media = block.get("media", {})
-                        url = media.get("url", "")
+                        attachments = block.get("attachments", {})
+                        url = attachments.get("url", "")
                         if url:
                             # Download audio if enabled and not external
-                            if self.download_audio and not self.is_external_media(url, "audio"):
-                                audio_path = self.download_media(url, media_dir)
+                            if self.download_audio and not self.is_external_attachments(url, "audio"):
+                                audio_path = self.download_attachments(url, attachments_dir)
                                 md_content.append(f"[Audio]({audio_path})")
                             else:
                                 md_content.append(f"[Audio]({url})")
@@ -396,7 +396,7 @@ class TumblrBackup:
 
     def save_post(self, post: Dict[str, Any]) -> None:
         """
-        Save a single post to its own markdown file with media in a subfolder
+        Save a single post to its own markdown file with attachments in a subfolder
 
         Args:
             post: Post data from API
@@ -428,11 +428,11 @@ class TumblrBackup:
         if filepath.exists():
             return
 
-        # Create media directory for this post
-        media_dir = post_dir / "media"
+        # Create attachments directory for this post
+        attachments_dir = post_dir / "attachments"
 
         # Convert to markdown
-        markdown_content = self.convert_to_markdown(post, media_dir)
+        markdown_content = self.convert_to_markdown(post, attachments_dir)
 
         # Save the markdown file
         with open(filepath, "w", encoding="utf-8") as f:
