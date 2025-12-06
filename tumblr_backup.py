@@ -513,22 +513,23 @@ class TumblrBackup:
     def sanitize_filename(self, title: str) -> str:
         """
         Sanitize a title to be used as a filename
+        Keeps only alphanumeric characters and dashes, first 4 words only
 
         Args:
             title: Post title
 
         Returns:
-            Sanitized filename
+            Sanitized filename (alphanumeric and dashes only, max 4 words)
         """
-        # Remove or replace invalid characters
-        title = re.sub(r'[<>:"/\\|?*]', '', title)
-        # Replace spaces with hyphens
-        title = title.replace(' ', '-')
-        # Limit length
-        title = title[:100]
-        # Remove trailing hyphens
-        title = title.strip('-')
-        return title if title else "untitled"
+        # Remove all non-alphanumeric characters except spaces
+        title = re.sub(r'[^a-zA-Z0-9\s]', '', title)
+        # Split into words and take first 4
+        words = title.split()[:4]
+        # Join with hyphens
+        sanitized = '-'.join(words)
+        # Convert to lowercase for consistency
+        sanitized = sanitized.lower()
+        return sanitized if sanitized else "untitled"
 
     def save_post(self, post: Dict[str, Any]) -> None:
         """
