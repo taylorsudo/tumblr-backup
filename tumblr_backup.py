@@ -188,12 +188,6 @@ class TumblrBackup:
             response = requests.get(attachments_url, timeout=30, stream=True)
             response.raise_for_status()
 
-            # Check file size (skip if > 100MB)
-            content_length = response.headers.get('content-length')
-            if content_length and int(content_length) > 100 * 1024 * 1024:
-                print(f"Warning: File too large (>100MB), skipping.")
-                return attachments_url
-
             with open(attachments_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
