@@ -6,15 +6,15 @@ Automatically back up your Tumblr posts to markdown files using the Tumblr API v
 
 - Fetches all posts from your Tumblr blog (or just recent posts with incremental mode)
 - Converts posts to markdown format with full reblog trail support
-- Each post saved to its own file under `output_dir/YYYY/MM/DD/HH-MM-title.md` (default output_dir is `backup`)
-- **Incremental backups**: Skips already-backed-up posts
+- All posts from a day saved to a single file: `output_dir/YYYY/MM/DD.md` (default output_dir is `backup`)
+- **Incremental backups**: Skips already-backed-up days
 - **Time-based incremental mode**: Only fetch posts from the last N hours (perfect for scheduled backups)
 - **Downloads attachments locally**: Images, videos, and audio files saved in per-day `Attachments/` folders
 - **Reblog trail formatting**: Displays full reblog chains with proper markdown quoting
 - Supports all post types (text, photo, quote, link, video, audio)
-- Smart attachments handling: Skips external embeds (YouTube, Vimeo, Spotify, etc.) and oversized files, keeping them as URL links
+- Smart attachments handling: Skips external embeds (YouTube, Vimeo, Spotify, etc.)
 - Respects API rate limits
-- Preserves metadata (dates and tags in front matter)
+- Preserves metadata (timestamps as H2 headings, tags inline)
 
 ## Setup
 
@@ -90,6 +90,11 @@ Edit `config.json` with your details:
 - **download_audio**: Whether to download audio files locally (default: true)
 - **incremental_hours**: (Optional) Only fetch posts from the last N hours. Set to `null` for full backup (default: 5)
 - **delete_after_backup**: (Optional) Delete posts from Tumblr after successful backup. Requires OAuth credentials (default: true)
+- **add_to_youtube_playlist**: (Optional) Automatically add YouTube videos from posts to a playlist (default: false)
+- **youtube_playlist_id**: (Required if add_to_youtube_playlist is true) Your YouTube playlist ID (starts with "PL")
+- **youtube_client_id**: (Required if add_to_youtube_playlist is true) Google OAuth2 client ID
+- **youtube_client_secret**: (Required if add_to_youtube_playlist is true) Google OAuth2 client secret
+- **youtube_refresh_token**: (Required if add_to_youtube_playlist is true) YouTube refresh token for headless authentication
 
 ## Usage
 
@@ -101,17 +106,17 @@ python tumblr_backup.py
 
 The script will:
 1. Fetch all posts from your blog
-2. Check for existing post files and skip them
-3. Create `output_dir/YYYY/MM/DD/` folders with filenames prefixed by the post time
+2. Group posts by day
+3. Create `output_dir/YYYY/MM/DD.md` files for each day
 4. Download attachments into that day's `Attachments/` folder (if enabled)
-5. Save each post as an individual markdown file
+5. Save all posts from each day in a single markdown file with timestamps as H2 headings
 
 ### Incremental Backups
 
-The script automatically skips posts that have already been backed up by checking if the file exists. When you run the script again:
-- Only new posts are created
+The script automatically skips days that have already been backed up by checking if the daily file exists. When you run the script again:
+- Only new days are created
 - Already downloaded attachments files in the day's `Attachments/` folder are skipped
-- No duplicate posts will be created
+- Existing daily files are not overwritten
 
 This makes it efficient to run regularly (e.g., daily or weekly) to keep your backup up-to-date.
 
@@ -141,13 +146,11 @@ With `incremental_hours` set to 5:
 
 - **Images**: All images are downloaded to the day's `Attachments/` folder
 - **Videos**:
-  - Tumblr-hosted videos are downloaded (max 100MB)
+  - Tumblr-hosted videos are downloaded
   - External embeds (YouTube, Vimeo, Instagram) remain as links
-  - Files larger than 100MB remain as links
 - **Audio**:
-  - Tumblr-hosted audio is downloaded (max 100MB)
+  - Tumblr-hosted audio is downloaded
   - External embeds (Spotify, SoundCloud, Bandcamp) remain as links
-  - Files larger than 100MB remain as links
 
 ## Output Format
 
@@ -157,9 +160,9 @@ With `incremental_hours` set to 5:
 backup/
 └── 2025/
     └── 12/
+        ├── 04.md
+        ├── 05.md
         └── 04/
-            ├── 17-15-my-first-post.md
-            ├── 18-05-weekend-thoughts.md
             └── Attachments/
                 ├── photo1.jpg
                 ├── photo2.png
@@ -167,56 +170,60 @@ backup/
                 └── audio.mp3
 ```
 
-Each post gets:
-- A markdown file at `output_dir/YYYY/MM/DD/HH-MM-<sanitized-title>.md`
+Each day gets:
+- A single markdown file at `output_dir/YYYY/MM/DD.md` containing all posts from that day
 - Attachments saved to `output_dir/YYYY/MM/DD/Attachments/` if downloading is enabled
 
-Folders are organized by `year/month/day`. Filenames are prefixed with the post time (`HH-MM`) followed by a sanitized title. All attachments for posts on that date are stored in the shared `Attachments/` folder and linked from each markdown file (links reference that folder as `Attachments/...`).
+Files are organized by `year/month/day.md`. All posts from a day are in one file with timestamps as H2 headings. All attachments for that date are stored in the `DD/Attachments/` folder and linked from the markdown file (links reference that folder as `04/Attachments/...`).
 
 ### Post Format
 
-Each markdown file includes:
+Each daily markdown file includes:
 
-- **Front matter** with `date` and `tags`
+- **H1 heading** with the date (YYYY-MM-DD)
+- **H2 headings** for each post's timestamp (HH:MM)
+- **Tags** shown inline after each timestamp
 - **Reblog trail** (if the post is a reblog) with proper quote formatting
 - **Content** formatted according to post type
 - **Relative attachments paths** pointing to the `Attachments/` folder
+- **Horizontal rules** (`---`) separating posts
 
-Example original post (`18-05-travel-update.md`):
+Example daily file (`04.md`):
 
 ```markdown
----
-date: 2025-12-04 18:05:00
-tags:
-  - photo
-  - travel
----
+# 2025-12-04
+
+## 18:05
+
+Tags: `photo`, `travel`
 
 Check out this amazing photo from my trip!
 
-![Photo](Attachments/sunset.jpg)
-```
+![Photo](04/Attachments/sunset.jpg)
 
-Example reblog with trail (`19-30-reblogged-post.md`):
+---
 
-```markdown
----
-date: 2025-12-04 19:30:00
-tags:
-  - reblog
----
+## 19:30
+
+Tags: `reblog`
 
 user1:
 >Original post content here
->![Image](Attachments/photo.jpg)
+>![Image](04/Attachments/photo.jpg)
 
 user2:
 >Added some thoughts about this
 
 My additional commentary goes here
+
+---
+
+## 22:15
+
+Just a quick text post before bed!
 ```
 
-The reblog trail shows the full chain of reblogs with each person's contribution quoted, followed by your own commentary.
+The daily file contains all posts chronologically with timestamps as H2 headings. The reblog trail shows the full chain of reblogs with each person's contribution quoted, followed by your own commentary.
 
 ## Rate Limits
 
@@ -324,6 +331,70 @@ You can also manually upload your backups to Dropbox from your local machine.
    ```
 
 The script will upload all files from your backup folder to Dropbox. The refresh token never expires, so you can use the same credentials indefinitely.
+
+## YouTube Playlist Integration
+
+Automatically collect YouTube video links from your Tumblr posts and add them to a YouTube playlist.
+
+### Features
+
+- Extracts YouTube URLs from video blocks in posts (NPF format)
+- Automatically adds videos to your specified playlist
+- Skips duplicates (won't add videos already in the playlist)
+- Works with GitHub Actions using refresh tokens (no browser required)
+
+### Setup
+
+1. **Create a Google Cloud Project**:
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project
+   - Enable the "YouTube Data API v3"
+
+2. **Get OAuth2 Credentials**:
+   - In the Cloud Console, go to "Credentials"
+   - Create "OAuth 2.0 Client ID" (choose "Desktop app")
+   - Copy the Client ID and Client Secret
+
+3. **Create a YouTube Playlist**:
+   - Go to YouTube and create a new playlist
+   - Get the playlist ID from the URL: `youtube.com/playlist?list=PLxxxxxxxxxx`
+
+4. **Generate a Refresh Token**:
+   ```bash
+   python get_youtube_refresh_token.py
+   ```
+   - Enter your Client ID and Client Secret
+   - Authorize in the browser
+   - Copy the refresh token
+
+5. **Update config.json**:
+   ```json
+   {
+     "add_to_youtube_playlist": true,
+     "youtube_playlist_id": "PLxxxxxxxxxx",
+     "youtube_client_id": "your_client_id.apps.googleusercontent.com",
+     "youtube_client_secret": "your_client_secret",
+     "youtube_refresh_token": "your_refresh_token"
+   }
+   ```
+
+### How It Works
+
+- During backup, the script collects YouTube URLs from video blocks
+- After backup completes, videos are automatically added to your playlist
+- Only YouTube links from explicit video blocks are collected (not from text or comments)
+- The refresh token allows it to work in GitHub Actions without browser interaction
+
+### GitHub Actions Setup
+
+Add these secrets to your GitHub repository (Settings → Secrets and variables → Actions):
+
+- `YOUTUBE_PLAYLIST_ID`
+- `YOUTUBE_CLIENT_ID`
+- `YOUTUBE_CLIENT_SECRET`
+- `YOUTUBE_REFRESH_TOKEN`
+
+Set `ADD_TO_YOUTUBE_PLAYLIST: true` in the workflow environment variables.
 
 ## API Documentation
 

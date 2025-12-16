@@ -15,6 +15,7 @@ jobs:
       DOWNLOAD_AUDIO: true
       INCREMENTAL_HOURS: 25
       DELETE_AFTER_BACKUP: true
+      ADD_TO_YOUTUBE_PLAYLIST: false
 
     steps:
     - name: Checkout repository
@@ -43,7 +44,12 @@ jobs:
           "download_videos": ${{ env.DOWNLOAD_VIDEOS }},
           "download_audio": ${{ env.DOWNLOAD_AUDIO }},
           "incremental_hours": ${{ env.INCREMENTAL_HOURS }},
-          "delete_after_backup": ${{ env.DELETE_AFTER_BACKUP }}
+          "delete_after_backup": ${{ env.DELETE_AFTER_BACKUP }},
+          "add_to_youtube_playlist": ${{ env.ADD_TO_YOUTUBE_PLAYLIST }},
+          "youtube_playlist_id": "${{ secrets.YOUTUBE_PLAYLIST_ID }}",
+          "youtube_client_id": "${{ secrets.YOUTUBE_CLIENT_ID }}",
+          "youtube_client_secret": "${{ secrets.YOUTUBE_CLIENT_SECRET }}",
+          "youtube_refresh_token": "${{ secrets.YOUTUBE_REFRESH_TOKEN }}"
         }
         EOF
 

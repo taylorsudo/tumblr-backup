@@ -22,7 +22,7 @@ class TumblrBackup:
                  download_images: bool = True, download_videos: bool = True, download_audio: bool = True,
                  consumer_secret: Optional[str] = None, oauth_token: Optional[str] = None,
                  oauth_token_secret: Optional[str] = None, incremental_hours: Optional[int] = 5,
-                 delete_after_backup: bool = False):
+                 delete_after_backup: bool = False, add_to_youtube_playlist: bool = False):
         """
         Initialize the Tumblr backup tool
 
@@ -38,6 +38,7 @@ class TumblrBackup:
             oauth_token_secret: OAuth token secret (required for private blogs)
             incremental_hours: Only fetch posts from the last N hours (default: 5, set to None for full backup)
             delete_after_backup: Delete posts from Tumblr after successful backup (requires OAuth, default: False)
+            add_to_youtube_playlist: Collect YouTube URLs and add to playlist (default: False)
         """
         self.blog_identifier = blog_identifier
         self.api_key = api_key
@@ -48,6 +49,8 @@ class TumblrBackup:
         self.download_audio = download_audio
         self.incremental_hours = incremental_hours
         self.delete_after_backup = delete_after_backup
+        self.add_to_youtube_playlist = add_to_youtube_playlist
+        self.youtube_urls: List[str] = []
         self.tz = ZoneInfo("Australia/Sydney")
 
         # OAuth credentials for private blogs
@@ -215,6 +218,18 @@ class TumblrBackup:
             return any(domain in url.lower() for domain in ['spotify.com', 'soundcloud.com', 'bandcamp.com'])
         return False
 
+    def is_youtube_url(self, url: str) -> bool:
+        """
+        Check if a URL is a YouTube video URL
+
+        Args:
+            url: URL to check
+
+        Returns:
+            True if YouTube URL, False otherwise
+        """
+        return 'youtube.com' in url.lower() or 'youtu.be' in url.lower()
+
     def process_npf_content_blocks(self, blocks: List[Dict[str, Any]], attachments_dir: Path, quote_level: int = 0) -> List[str]:
         """
         Process NPF content blocks and convert them to markdown
@@ -279,6 +294,10 @@ class TumblrBackup:
                 media = block.get("media", {})
                 url = media.get("url", "")
                 if url:
+                    # Collect YouTube URLs for playlist if enabled
+                    if self.add_to_youtube_playlist and self.is_youtube_url(url):
+                        self.youtube_urls.append(url)
+
                     if self.download_videos and not self.is_external_attachments(url, "video"):
                         video_path = self.download_attachments(url, attachments_dir)
                         lines.append(f"{quote_prefix}[Video]({video_path})")
@@ -315,13 +334,14 @@ class TumblrBackup:
 
         return lines
 
-    def convert_to_markdown(self, post: Dict[str, Any], attachments_dir: Path) -> str:
+    def convert_to_markdown(self, post: Dict[str, Any], attachments_dir: Path, include_timestamp_heading: bool = True) -> str:
         """
         Convert a Tumblr post to markdown format
 
         Args:
             post: Post data from API
             attachments_dir: Directory to save attachments files for this post
+            include_timestamp_heading: Whether to include H2 timestamp heading
 
         Returns:
             Markdown formatted string
@@ -332,22 +352,21 @@ class TumblrBackup:
         post_type = post.get("type", "unknown")
         # post_id = post.get("id_string", post.get("id", "unknown"))
         timestamp = post.get("timestamp", 0)
-        date = datetime.fromtimestamp(timestamp, tz=self.tz).strftime("%Y-%m-%d %H:%M:%S")
+        date = datetime.fromtimestamp(timestamp, tz=self.tz)
         tags = post.get("tags", [])
         # post_url = post.get("post_url", "")
 
-        md_content.append("---")
-        # md_content.append(f"post_id: {post_id}")
-        # md_content.append(f"title: {post.get('summary', 'Untitled')}")
-        md_content.append(f"date: {date}")
-        # md_content.append(f"type: {post_type}")
-        # md_content.append(f"url: {post_url}")
+        # Add timestamp as H2 heading
+        if include_timestamp_heading:
+            time_str = date.strftime("%H:%M")
+            md_content.append(f"## {time_str}")
+            md_content.append("")
+
+        # Add tags if present
         if tags:
-            md_content.append("tags:")
-            for tag in tags:
-                md_content.append(f"  - {tag}")
-        md_content.append("---")
-        md_content.append("")
+            tags_line = "Tags: " + ", ".join(f"`{tag}`" for tag in tags)
+            md_content.append(tags_line)
+            md_content.append("")
 
         # Process reblog trail if it exists (for reblogs)
         trail = post.get("trail", [])
@@ -504,77 +523,91 @@ class TumblrBackup:
             print(f"Error deleting post {post_id}: {e}")
             return False
 
-    def sanitize_filename(self, title: str) -> str:
+    def get_daily_posts(self, posts: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Sanitize a title to be used as a filename
-        Keeps only alphanumeric characters and dashes, first 4 words only
+        Group posts by day
 
         Args:
-            title: Post title
+            posts: List of post data from API
 
         Returns:
-            Sanitized filename (alphanumeric and dashes only, max 4 words)
+            Dictionary mapping date strings (YYYY/MM/DD) to lists of posts
         """
-        # Remove all non-alphanumeric characters except spaces
-        title = re.sub(r'[^a-zA-Z0-9\s]', '', title)
-        # Split into words and take first 4
-        words = title.split()[:4]
-        # Join with hyphens
-        sanitized = '-'.join(words)
-        # Convert to lowercase for consistency
-        sanitized = sanitized.lower()
-        return sanitized if sanitized else "untitled"
+        daily_posts = {}
+        for post in posts:
+            timestamp = post.get("timestamp", 0)
+            date = datetime.fromtimestamp(timestamp, tz=self.tz)
+            date_key = date.strftime("%Y/%m/%d")
 
-    def save_post(self, post: Dict[str, Any]) -> None:
+            if date_key not in daily_posts:
+                daily_posts[date_key] = []
+            daily_posts[date_key].append(post)
+
+        # Sort posts within each day by timestamp (oldest first)
+        for date_key in daily_posts:
+            daily_posts[date_key].sort(key=lambda p: p.get("timestamp", 0))
+
+        return daily_posts
+
+    def save_daily_posts(self, date_key: str, posts: List[Dict[str, Any]]) -> None:
         """
-        Save a single post to its own markdown file with attachments in a subfolder
+        Save all posts from a day to a single markdown file
 
         Args:
-            post: Post data from API
+            date_key: Date string in format YYYY/MM/DD
+            posts: List of posts for this day
         """
-        timestamp = post.get("timestamp", 0)
-        date = datetime.fromtimestamp(timestamp, tz=self.tz)
-        post_id = post.get("id_string", post.get("id", "unknown"))
+        # Parse date_key to create directory structure
+        year, month, day = date_key.split('/')
 
-        # Get post title and sanitize
-        title = post.get("summary", post.get("title", "Untitled"))
-        if title == "Untitled" or not title:
-            title = f"post-{post_id}"
-        safe_title = self.sanitize_filename(title)
+        # Create directory structure: yyyy/mm/
+        day_dir = self.output_dir / year / month
+        day_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create directory structure: yyyy/mm/dd/
-        year = date.strftime("%Y")
-        month = date.strftime("%m")
-        day = date.strftime("%d")
-        time_str = date.strftime("%H-%M")
+        # Create filename: DD.md
+        filepath = day_dir / f"{day}.md"
 
-        post_dir = self.output_dir / year / month / day
-        post_dir.mkdir(parents=True, exist_ok=True)
+        # Create attachments directory for this day
+        attachments_dir = day_dir / day / "Attachments"
 
-        # Create filename
-        filename = f"{time_str}-{safe_title}.md"
-        filepath = post_dir / filename
-
-        # Skip if already exists
+        # Check if file already exists and has content
         if filepath.exists():
-            return
+            with open(filepath, "r", encoding="utf-8") as f:
+                existing_content = f.read()
+                # If file has substantial content, skip (incremental backup)
+                if len(existing_content) > 10:
+                    return
 
-        # Create attachments directory for this post
-        attachments_dir = post_dir / "Attachments"
+        # Convert all posts to markdown
+        daily_content = []
+        date_obj = datetime.strptime(date_key, "%Y/%m/%d").replace(tzinfo=self.tz)
 
-        # Convert to markdown
-        markdown_content = self.convert_to_markdown(post, attachments_dir)
+        # Add date as H1 heading
+        daily_content.append(f"# {date_obj.strftime('%Y-%m-%d')}")
+        daily_content.append("")
+
+        for post in posts:
+            post_md = self.convert_to_markdown(post, attachments_dir, include_timestamp_heading=True)
+            daily_content.append(post_md)
+            daily_content.append("")
+            daily_content.append("---")
+            daily_content.append("")
+
+            # Delete post from Tumblr if enabled
+            if self.delete_after_backup:
+                post_id = post.get("id_string", post.get("id", "unknown"))
+                if self.delete_post(str(post_id)):
+                    print(f"Deleted post {post_id} from Tumblr")
+                else:
+                    print(f"Failed to delete post {post_id}")
+
+        # Remove trailing separator
+        if daily_content[-1] == "" and daily_content[-2] == "---":
+            daily_content = daily_content[:-2]
 
         # Save the markdown file
         with open(filepath, "w", encoding="utf-8") as f:
-            f.write(markdown_content)
-
-        # Delete post from Tumblr if enabled
-        if self.delete_after_backup:
-            if self.delete_post(str(post_id)):
-                print(f"Deleted post {post_id} from Tumblr")
-            else:
-                print(f"Failed to delete post {post_id}")
+            f.write("\n".join(daily_content))
 
     def backup(self) -> None:
         """
@@ -588,11 +621,18 @@ class TumblrBackup:
 
         print(f"\nSaving {len(posts)} posts to {self.output_dir}...")
 
-        # Save each post to its own file
-        for post in posts:
-            self.save_post(post)
+        # Group posts by day
+        daily_posts = self.get_daily_posts(posts)
+
+        # Save each day's posts to a single file
+        for date_key, day_posts in daily_posts.items():
+            print(f"Saving {len(day_posts)} post(s) for {date_key}...")
+            self.save_daily_posts(date_key, day_posts)
 
         print(f"\nBackup complete! Posts saved to {self.output_dir.absolute()}")
+
+        # Return collected YouTube URLs for playlist integration
+        return self.youtube_urls if self.add_to_youtube_playlist else []
 
 
 def main():
@@ -620,6 +660,13 @@ def main():
     incremental_hours = config.get("incremental_hours", 5)  # Default 5 hours, set to None for full backup
     delete_after_backup = config.get("delete_after_backup", False)  # Default False, requires OAuth
 
+    # YouTube playlist settings
+    add_to_youtube_playlist = config.get("add_to_youtube_playlist", False)
+    youtube_playlist_id = config.get("youtube_playlist_id")
+    youtube_client_id = config.get("youtube_client_id")
+    youtube_client_secret = config.get("youtube_client_secret")
+    youtube_refresh_token = config.get("youtube_refresh_token")
+
     # OAuth credentials for private blogs
     consumer_secret = config.get("consumer_secret")
     oauth_token = config.get("oauth_token")
@@ -634,6 +681,11 @@ def main():
         print("Error: delete_after_backup requires OAuth credentials (consumer_secret, oauth_token, oauth_token_secret)")
         return
 
+    # Validate YouTube credentials if add_to_youtube_playlist is enabled
+    if add_to_youtube_playlist and not all([youtube_playlist_id, youtube_client_id, youtube_client_secret]):
+        print("Error: add_to_youtube_playlist requires YouTube credentials (youtube_playlist_id, youtube_client_id, youtube_client_secret)")
+        return
+
     # Create backup instance and run
     backup = TumblrBackup(
         blog_identifier,
@@ -646,9 +698,21 @@ def main():
         oauth_token,
         oauth_token_secret,
         incremental_hours,
-        delete_after_backup
+        delete_after_backup,
+        add_to_youtube_playlist
     )
-    backup.backup()
+    youtube_urls = backup.backup()
+
+    # Add YouTube videos to playlist if enabled
+    if add_to_youtube_playlist and youtube_urls:
+        from youtube_playlist import add_youtube_videos_to_playlist
+        add_youtube_videos_to_playlist(
+            youtube_urls,
+            youtube_client_id,
+            youtube_client_secret,
+            youtube_playlist_id,
+            youtube_refresh_token
+        )
 
 
 if __name__ == "__main__":

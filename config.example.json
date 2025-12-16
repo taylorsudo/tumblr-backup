@@ -9,5 +9,10 @@
   "download_videos": true,
   "download_audio": true,
   "incremental_hours": 5,
-  "delete_after_backup": true
+  "delete_after_backup": true,
+  "add_to_youtube_playlist": false,
+  "youtube_playlist_id": "PLxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "youtube_client_id": "your_google_oauth_client_id.apps.googleusercontent.com",
+  "youtube_client_secret": "your_google_oauth_client_secret",
+  "youtube_refresh_token": "your_youtube_refresh_token_here"
 }
