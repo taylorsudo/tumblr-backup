@@ -117,9 +117,8 @@ class TumblrBackup:
         # Calculate cutoff time if incremental mode
         cutoff_timestamp = None
         if self.incremental_hours:
-            hours = 7 * 24
-            cutoff_timestamp = int(time.time()) - (hours * 3600)
-            print(f"Fetching posts from the last {hours} hours...")
+            cutoff_timestamp = int(time.time()) - (self.incremental_hours * 3600)
+            print(f"Fetching posts from the last {self.incremental_hours} hours...")
         else:
             print(f"Fetching posts from {self.blog_identifier}...")
 
