@@ -130,24 +130,33 @@ class TumblrBackup:
 
     def fetch_all_posts(self):
         all_posts = []
-        before = None # Initialize before
+        before = None 
         now = int(time.time())
-        window_floor = max(now - (self.incremental_hours * 3600), self.earliest_timestamp) if self.incremental_hours else self.earliest_timestamp
-    
+        
+        # This is the "cutoff" - only posts older than this will be processed
+        window_ceiling = now - (self.incremental_hours * 3600)
+        
         while True:
-            resp = self.fetch_posts(limit=20, before=before) # Use before
+            resp = self.fetch_posts(limit=20, before=before)
             if not resp: break
             
             posts = resp["response"].get("posts", [])
             if not posts: break
     
-            filtered = [p for p in posts if window_floor <= p.get("timestamp", 0) <= now]
+            # Filter: Post must be older than the ceiling AND newer than your earliest start date
+            filtered = [
+                p for p in posts 
+                if self.earliest_timestamp <= p.get("timestamp", 0) <= window_ceiling
+            ]
+            
+            # Since Tumblr returns newest first, and we want to save chronological daily files,
+            # we keep them in reverse order to append correctly later.
             all_posts.extend(reversed(filtered))
     
-            # Update 'before' to the timestamp of the oldest post in this batch
             before = posts[-1].get("timestamp")
             
-            if before < window_floor:
+            # If the oldest post in this batch is already past our earliest backup date, stop.
+            if before < self.earliest_timestamp:
                 break
             time.sleep(0.2)
         return all_posts
@@ -268,17 +277,17 @@ class TumblrBackup:
                     label = b_type.capitalize()
                     out.append(f"![{label}]({url})")
             
-                elif b_type == "image":
-                    should_download = getattr(self, "download_image", True)
-                    # NPF images often have a media list; we want the best quality
-                    url = best_media_url(block.get("media", []))
-                    
-                    if url and should_download:
-                        url = self.download_attachment(url, attachments_dir, ts)
-                    
-                    if url:
-                        out.append(f"![Image]({url})")
-                        
+            elif b_type == "image":
+                should_download = getattr(self, "download_image", True)
+                # NPF images often have a media list; we want the best quality
+                url = best_media_url(block.get("media", []))
+                
+                if url and should_download:
+                    url = self.download_attachment(url, attachments_dir, ts)
+                
+                if url:
+                    out.append(f"![Image]({url})")
+                
             return "\n".join(out)
 
     # ---------------- MARKDOWN ----------------
