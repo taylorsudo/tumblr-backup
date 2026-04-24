@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-“””
+"""
 Tumblr Backup Script
 Backs up Tumblr posts to markdown files using the Tumblr API v2
-“””
+"””
 
 import os
 import json
@@ -17,12 +17,12 @@ import re
 from urllib.parse import urlparse
 
 class TumblrBackup:
-def **init**(self, blog_identifier: str, api_key: str, output_dir: str = “backup”,
+def **init**(self, blog_identifier: str, api_key: str, output_dir: str = "backup”,
 download_images: bool = True, download_videos: bool = True, download_audio: bool = True,
 consumer_secret: Optional[str] = None, oauth_token: Optional[str] = None,
 oauth_token_secret: Optional[str] = None, incremental_hours: Optional[int] = 5,
 delete_after_backup: bool = False, add_to_youtube_playlist: bool = False):
-“””
+"””
 Initialize the Tumblr backup tool
 
 ```
@@ -246,7 +246,7 @@ quote_level: int = 0
 ```
 
 ) -> List[str]:
-“””
+"””
 Process NPF content blocks and convert them to markdown
 
 ```
@@ -655,11 +655,11 @@ def backup(self) -> List[str]:
 ```
 
 def main():
-“””
+"””
 Main function to run the backup
-“””
+"””
 # Load configuration
-config_file = Path(“config.json”)
+config_file = Path("config.json”)
 
 ```
 if not config_file.exists():
@@ -735,5 +735,5 @@ if add_to_youtube_playlist and youtube_urls:
     )
 ```
 
-if **name** == “**main**”:
+if **name** == "**main**”:
 main()
