@@ -24,13 +24,16 @@ def sanitize_md(text: str) -> str:
 def parse_earliest(date_str: str, tz: ZoneInfo) -> int:
     dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=tz)
     return int(dt.timestamp())
-
-
+    
+    
 def best_media_url(media_list):
     if not media_list:
         return ""
-    best = max(media_list, key=lambda m: m.get("width", 0))
-    return best.get("url", media_list[0].get("url", ""))
+    try:
+        best = max(media_list, key=lambda m: m.get("width", 0))
+        return best.get("url", media_list[0].get("url", ""))
+    except (ValueError, IndexError):
+        return ""
 
 
 def requests_with_retry(method: str, url: str, max_retries: int = MAX_RETRIES, **kwargs):
@@ -66,8 +69,8 @@ class TumblrBackup:
         blog_identifier,
         api_key,
         output_dir="backup",
-        download_images=True,
-        download_videos=True,
+        download_image=True,
+        download_video=True,
         download_audio=True,
         consumer_secret=None,
         oauth_token=None,
@@ -81,8 +84,8 @@ class TumblrBackup:
         self.output_dir = Path(output_dir)
         self.base_url = "https://api.tumblr.com/v2"
 
-        self.download_images = download_images
-        self.download_videos = download_videos
+        self.download_image = download_image
+        self.download_video = download_video
         self.download_audio = download_audio
 
         self.incremental_hours = incremental_hours
@@ -108,18 +111,17 @@ class TumblrBackup:
 
     # ---------------- API ----------------
 
-    def fetch_posts(self, limit=20, offset=0):
+    def fetch_posts(self, limit=20, before=None): # Changed offset to before
         url = f"{self.base_url}/blog/{self.blog_identifier}/posts"
         params = {
             "limit": min(limit, 20),
-            "offset": offset,
+            "before": before, # Use timestamp instead of offset
             "npf": "true",
             "notes_info": "true",
         }
-
         if not self.auth:
             params["api_key"] = self.api_key
-
+    
         r = requests_with_retry("GET", url, params=params, auth=self.auth)
         return r.json() if r else None
 
@@ -127,44 +129,26 @@ class TumblrBackup:
 
     def fetch_all_posts(self):
         all_posts = []
-        offset = 0
-        limit = 20
+        before = None # Initialize before
         now = int(time.time())
-
-        if self.incremental_hours is not None:
-            cutoff = now - (self.incremental_hours * 3600)
-            window_floor = max(cutoff, self.earliest_timestamp)
-        else:
-            window_floor = self.earliest_timestamp
-
+        window_floor = max(now - (self.incremental_hours * 3600), self.earliest_timestamp) if self.incremental_hours else self.earliest_timestamp
+    
         while True:
-            resp = self.fetch_posts(limit=limit, offset=offset)
-            if not resp:
-                break
-
+            resp = self.fetch_posts(limit=20, before=before) # Use before
+            if not resp: break
+            
             posts = resp["response"].get("posts", [])
-            if not posts:
+            if not posts: break
+    
+            filtered = [p for p in posts if window_floor <= p.get("timestamp", 0) <= now]
+            all_posts.extend(reversed(filtered))
+    
+            # Update 'before' to the timestamp of the oldest post in this batch
+            before = posts[-1].get("timestamp")
+            
+            if before < window_floor:
                 break
-
-            original = posts[:]  # preserve API order for safety check
-
-            posts = list(reversed(posts))  # oldest → newest within batch
-
-            filtered = [
-                p for p in posts
-                if window_floor <= p.get("timestamp", 0) <= now
-            ]
-
-            all_posts.extend(filtered)
-
-            # FIX: check BEFORE reversal using original ordering
-            oldest_original = original[-1].get("timestamp", 0)
-            if oldest_original < window_floor:
-                break
-
-            offset += limit
             time.sleep(0.2)
-
         return all_posts
 
     # ---------------- ATTACHMENTS ----------------
@@ -250,12 +234,12 @@ class TumblrBackup:
 
     def _process_blocks(self, blocks, attachments_dir: Path, ts: int):
         out = []
-
         for block in blocks:
-            if block.get("type") == "text":
+            b_type = block.get("type")
+            
+            if b_type == "text":
                 text = sanitize_md(block.get("text", ""))
                 subtype = block.get("subtype", "")
-
                 prefix = {
                     "heading1": "# ",
                     "heading2": "## ",
@@ -263,15 +247,20 @@ class TumblrBackup:
                     "unordered": "- ",
                     "ordered": "1. ",
                 }.get(subtype, "")
-
                 out.append(f"{prefix}{text}")
-
-            elif block.get("type") == "image":
-                url = best_media_url(block.get("media", []))
-                if url and self.download_images:
+    
+            elif b_type in ["image", "video", "audio"]:
+                # Check if user enabled this specific download type
+                should_download = getattr(self, f"download_{b_type}", False)
+                url = best_media_url(block.get("media", [])) if b_type != "audio" else block.get("url")
+                
+                if url and should_download:
                     url = self.download_attachment(url, attachments_dir, ts)
-                out.append(f"![img]({url})")
-
+                
+                if url: # Only add to output if we actually have a link
+                    label = b_type.capitalize()
+                    out.append(f"![{label}]({url})")
+                
         return "\n".join(out)
 
     # ---------------- MARKDOWN ----------------
@@ -295,15 +284,18 @@ class TumblrBackup:
             md.append("\n".join([f"> {l}" if l.strip() else ">" for l in trail.split("\n")]))
             md.append("")
 
-        content = post.get("content") or [
-            {"type": "text", "text": post.get("summary")
-             or post.get("body")
-             or post.get("caption")
-             or ""}
-        ]
-
+        content = post.get("content")
+        # Check if content is None or an empty list
+        if not content:
+            content = [
+                {
+                    "type": "text", 
+                    "text": (post.get("summary") or post.get("body") or post.get("caption") or "")
+                }
+            ]
+        
         md.append(self._process_blocks(content, attachments_dir, ts))
-
+        
         # ---------------- TAGS (FIXED) ----------------
         tags = post.get("tags", [])
         if tags:
@@ -414,8 +406,8 @@ def load_config():
         "blog_identifier": g("blog_identifier"),
         "api_key": g("api_key"),
         "output_dir": g("output_dir", "backup"),
-        "download_images": b("DOWNLOAD_IMAGES", True),
-        "download_videos": b("DOWNLOAD_VIDEOS", True),
+        "download_image": b("DOWNLOAD_IMAGE", True),
+        "download_video": b("DOWNLOAD_VIDEO", True),
         "download_audio": b("DOWNLOAD_AUDIO", True),
         "incremental_hours": i("INCREMENTAL_HOURS", 5),
         "earliest_date": g("earliest_date", EARLIEST_DEFAULT),
@@ -436,8 +428,8 @@ def main():
         blog_identifier=cfg["blog_identifier"],
         api_key=cfg["api_key"],
         output_dir=cfg["output_dir"],
-        download_images=cfg["download_images"],
-        download_videos=cfg["download_videos"],
+        download_image=cfg["download_image"],
+        download_video=cfg["download_video"],
         download_audio=cfg["download_audio"],
         consumer_secret=cfg["consumer_secret"],
         oauth_token=cfg["oauth_token"],
