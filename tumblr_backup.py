@@ -207,38 +207,55 @@ class TumblrBackup:
     # ---------------- NOTES ----------------
 
     def _format_notes(self, post):
+        # 1. Filter Check: Only record notes if the post belongs to your blog
+        # 'blog_name' in the post object refers to the author of the post
+        if post.get("blog_name", "").lower() != self.blog_identifier.lower():
+            return ""
+
         notes = post.get("notes", [])
         post_ts = post.get("timestamp", 0)
 
+        # Only process notes that happened at or after the post time
         filtered = [n for n in notes if n.get("timestamp", 0) >= post_ts]
 
+        # Extract Likes
         likes = [
             f"[{n.get('blog_name','unknown')}](https://www.tumblr.com/{n.get('blog_name','unknown')})"
             for n in filtered if n.get("type") == "like"
         ]
 
+        # Extract Reblogs
         reblogs = [
             f"[{n.get('blog_name','unknown')}](https://www.tumblr.com/{n.get('blog_name','unknown')})"
             for n in filtered if n.get("type") == "reblog"
         ]
 
+        # Extract and sort Replies
         replies = [n for n in filtered if n.get("type") == "reply"]
         replies.sort(key=lambda x: x.get("timestamp", 0))
 
         out = []
 
+        # 2. Formatting with extra line breaks
         if likes:
-            out.append("\n**Likes:** " + ", ".join(likes))
+            out.append("**Likes:** " + ", ".join(likes))
 
         if reblogs:
-            out.append("\n**Reblogs:** " + ", ".join(reblogs))
+            # Join with \n\n for an extra line break between sections
+            out.append("**Reblogs:** " + ", ".join(reblogs))
 
-        for r in replies:
-            user = f"[{r.get('blog_name','unknown')}](https://www.tumblr.com/{r.get('blog_name','unknown')})"
-            text = sanitize_md(r.get("reply_text", ""))
-            out.append(f"\n{user}:\n> {text}")
+        if replies:
+            reply_blocks = []
+            for r in replies:
+                user = f"[{r.get('blog_name','unknown')}](https://www.tumblr.com/{r.get('blog_name','unknown')})"
+                text = sanitize_md(r.get("reply_text", ""))
+                reply_blocks.append(f"{user}:\n> {text}")
+            
+            # Combine replies with a single break, but separate from previous sections with double
+            out.append("**Replies:**\n" + "\n".join(reply_blocks))
 
-        return "".join(out).lstrip("\n")
+        # Join all existing sections with double newlines
+        return "\n\n".join(out).strip()
 
     # ---------------- CONTENT ----------------
 
