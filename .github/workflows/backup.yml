@@ -67,5 +67,5 @@ jobs:
         DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
         DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
         DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
-        LOCAL_FOLDER: backup
+        LOCAL_FOLDER: Tumblr
         DROPBOX_PATH: /
