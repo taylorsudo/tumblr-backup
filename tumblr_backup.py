@@ -10,6 +10,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
 from urllib.parse import urlparse
+from video_utils import download_video_locally
 
 
 EARLIEST_DEFAULT = "2025-01-01"
@@ -249,7 +250,30 @@ class TumblrBackup:
                 }.get(subtype, "")
                 out.append(f"{prefix}{text}")
     
-            elif b_type in ["image", "video", "audio"]:
+            elif b_type == "video":
+                should_download = getattr(self, "download_video", False)
+                
+                # 1. Determine the URL
+                # Tumblr native videos are in 'media', external are often in 'url'
+                url = best_media_url(block.get("media", []))
+                provider = block.get("provider")
+                
+                if not url:
+                    url = block.get("url") or block.get("embed_url")
+    
+                # 2. Handle the download
+                if url and should_download:
+                    if provider in ["youtube", "vimeo", "youtube_playlist"]:
+                        # Use the helper file
+                        url = download_video_locally(url, attachments_dir)
+                    else:
+                        # Use your existing Tumblr attachment downloader
+                        url = self.download_attachment(url, attachments_dir, ts)
+                
+                if url:
+                    out.append(f"![Video]({url})")
+            
+            elif b_type in ["image", "audio"]:
                 # Check if user enabled this specific download type
                 should_download = getattr(self, f"download_{b_type}", False)
                 url = best_media_url(block.get("media", [])) if b_type != "audio" else block.get("url")
