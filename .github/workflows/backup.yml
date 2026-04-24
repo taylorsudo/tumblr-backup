@@ -46,7 +46,7 @@ jobs:
           "download_video": ${{ env.DOWNLOAD_VIDEO }},
           "download_audio": ${{ env.DOWNLOAD_AUDIO }},
           "incremental_hours": ${{ env.INCREMENTAL_HOURS }},
-          "delete_after_backup": ${{ env.DELETE_AFTER_BACKUP }},}},
+          "delete_after_backup": ${{ env.DELETE_AFTER_BACKUP }}
         }
         EOF
 
