@@ -250,7 +250,7 @@ class TumblrBackup:
                 user = f"[{r.get('blog_name','unknown')}](https://www.tumblr.com/{r.get('blog_name','unknown')})"
                 text = sanitize_md(r.get("reply_text", ""))
                 reply_blocks.append(f"{user} replied:\n> {text}")
-                out.extend(reply_blocks)
+            out.extend(reply_blocks)
 
         # Join all existing sections with double newlines
         return "\n\n".join(out).strip()
@@ -303,7 +303,7 @@ class TumblrBackup:
                 if url:
                     out.append(f"![Image]({url})")
                 
-            return "\n".join(out)
+        return "\n".join(out)
 
     # ---------------- MARKDOWN ----------------
 
