@@ -344,12 +344,13 @@ class TumblrBackup:
         tags = post.get("tags", [])
         if tags:
             formatted = [f"`{t}`" if " " in t else t for t in tags]
-            md.append("\n" + " ".join(formatted))
+            md.append(" ".join(formatted))
 
         # ---------------- NOTES ----------------
         notes_md = self._format_notes(post)
         if notes_md:
-            md.append("\n" + notes_md)
+            md.append("")
+            md.append(notes_md)
 
         return "\n".join(md)
 
