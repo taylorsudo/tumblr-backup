@@ -10,7 +10,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
 from urllib.parse import urlparse
-from video_utils import download_video_locally
+from download_utils import download_video_locally
 
 
 EARLIEST_DEFAULT = "2025-01-01"
@@ -251,22 +251,17 @@ class TumblrBackup:
                 out.append(f"{prefix}{text}")
     
             elif b_type in ["video", "audio"]:
-                # Check if enabled
                 should_download = getattr(self, f"download_{b_type}", False)
-                
-                # Determine provider
-                provider = block.get("provider", "")
+                provider = block.get("provider", "").lower()
                 url = block.get("url") or block.get("embed_url") or best_media_url(block.get("media", []))
     
                 if url and should_download:
-                    # List of external providers we want to handle via yt-dlp
-                    external_providers = ["youtube", "vimeo", "bandcamp", "soundcloud"]
+                    # Add spotify to the check
+                    external_providers = ["youtube", "vimeo", "bandcamp", "soundcloud", "spotify"]
                     
-                    if any(p in provider.lower() for p in external_providers):
-                        # Use the new helper for all external media
+                    if any(p in provider or p in url for p in external_providers):
                         url = download_media_locally(url, attachments_dir)
                     else:
-                        # Native Tumblr file
                         url = self.download_attachment(url, attachments_dir, ts)
                 
                 if url:
