@@ -10,7 +10,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
 from urllib.parse import urlparse
-from download_utils import download_video_locally
+from download_utils import download_media
 
 
 EARLIEST_DEFAULT = "2025-01-01"
@@ -260,7 +260,7 @@ class TumblrBackup:
                     external_providers = ["youtube", "vimeo", "bandcamp", "soundcloud", "spotify"]
                     
                     if any(p in provider or p in url for p in external_providers):
-                        url = download_media_locally(url, attachments_dir)
+                        url = download_media(url, attachments_dir)
                     else:
                         url = self.download_attachment(url, attachments_dir, ts)
                 
