@@ -75,7 +75,7 @@ class TumblrBackup:
         consumer_secret=None,
         oauth_token=None,
         oauth_token_secret=None,
-        incremental_hours=5,
+        incremental_hours=24,
         earliest_date=EARLIEST_DEFAULT,
         delete_after_backup=False,
     ):
@@ -409,7 +409,7 @@ def load_config():
         "download_image": b("DOWNLOAD_IMAGE", True),
         "download_video": b("DOWNLOAD_VIDEO", True),
         "download_audio": b("DOWNLOAD_AUDIO", True),
-        "incremental_hours": i("INCREMENTAL_HOURS", 5),
+        "incremental_hours": i("INCREMENTAL_HOURS", 24),
         "earliest_date": g("earliest_date", EARLIEST_DEFAULT),
         "delete_after_backup": b("DELETE_AFTER_BACKUP", False),
         "consumer_secret": g("consumer_secret"),
