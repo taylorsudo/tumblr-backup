@@ -169,46 +169,46 @@ class TumblrBackup:
 
     # ---------------- ATTACHMENTS ----------------
 
-        def download_attachment(self, url: str, folder: Path, ts: int) -> str:
-            try:
-                ext = os.path.splitext(urlparse(url).path)[1].lower() or ""
-                
-                # Category Check
-                if ext in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".tiff", ".bmp", ".svg", ".heic", ".heif", ".avif"}:
-                    subfolder = "Images"
-                elif ext in {".mp4", ".mov", ".webm", ".mkv", ".avi", ".wmv", ".m4v", ".mpg", ".mpeg", ".3gp"}:
-                    subfolder = "Videos"
-                elif ext in {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".aiff", ".m4b"}:
-                    subfolder = "Audio"
-                else:
-                    subfolder = "" # Other files go to Attachment root
-    
-                # Logic to create directory
-                target_dir = folder / subfolder if subfolder else folder
-                target_dir.mkdir(parents=True, exist_ok=True)
-    
-                base = datetime.fromtimestamp(ts, tz=self.tz).strftime("%Y-%m-%d-%H%M%S")
-                path = target_dir / f"{base}{ext}"
-    
-                i = 1
-                while path.exists():
-                    path = target_dir / f"{base}-{i}{ext}"
-                    i += 1
-    
-                r = requests_with_retry("GET", url, stream=True)
-                if not r: return url
-    
-                with open(path, "wb") as f:
-                    for chunk in r.iter_content(8192):
-                        f.write(chunk)
-    
-                # Construct relative path for Markdown
-                # If subfolder is empty, it just returns "Attachments/filename.ext"
-                rel_path = f"Attachments/{subfolder}/{path.name}" if subfolder else f"Attachments/{path.name}"
-                return rel_path
-    
-            except Exception:
-                return url
+    def download_attachment(self, url: str, folder: Path, ts: int) -> str:
+        try:
+            ext = os.path.splitext(urlparse(url).path)[1].lower() or ""
+            
+            # Category Check
+            if ext in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".tiff", ".bmp", ".svg", ".heic", ".heif", ".avif"}:
+                subfolder = "Images"
+            elif ext in {".mp4", ".mov", ".webm", ".mkv", ".avi", ".wmv", ".m4v", ".mpg", ".mpeg", ".3gp"}:
+                subfolder = "Videos"
+            elif ext in {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".aiff", ".m4b"}:
+                subfolder = "Audio"
+            else:
+                subfolder = "" # Other files go to Attachment root
+
+            # Logic to create directory
+            target_dir = folder / subfolder if subfolder else folder
+            target_dir.mkdir(parents=True, exist_ok=True)
+
+            base = datetime.fromtimestamp(ts, tz=self.tz).strftime("%Y-%m-%d-%H%M%S")
+            path = target_dir / f"{base}{ext}"
+
+            i = 1
+            while path.exists():
+                path = target_dir / f"{base}-{i}{ext}"
+                i += 1
+
+            r = requests_with_retry("GET", url, stream=True)
+            if not r: return url
+
+            with open(path, "wb") as f:
+                for chunk in r.iter_content(8192):
+                    f.write(chunk)
+
+            # Construct relative path for Markdown
+            # If subfolder is empty, it just returns "Attachments/filename.ext"
+            rel_path = f"Attachments/{subfolder}/{path.name}" if subfolder else f"Attachments/{path.name}"
+            return rel_path
+
+        except Exception:
+            return url
     
     # ---------------- NOTES ----------------
 
