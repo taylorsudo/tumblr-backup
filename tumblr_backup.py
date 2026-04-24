@@ -68,7 +68,7 @@ class TumblrBackup:
         self,
         blog_identifier,
         api_key,
-        output_dir="backup",
+        output_dir="Tumblr",
         download_image=True,
         download_video=True,
         download_audio=True,
@@ -405,7 +405,7 @@ def load_config():
     return {
         "blog_identifier": g("blog_identifier"),
         "api_key": g("api_key"),
-        "output_dir": g("output_dir", "backup"),
+        "output_dir": g("output_dir", "Tumblr"),
         "download_image": b("DOWNLOAD_IMAGE", True),
         "download_video": b("DOWNLOAD_VIDEO", True),
         "download_audio": b("DOWNLOAD_AUDIO", True),
