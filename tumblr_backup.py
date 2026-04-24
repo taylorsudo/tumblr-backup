@@ -250,42 +250,41 @@ class TumblrBackup:
                 }.get(subtype, "")
                 out.append(f"{prefix}{text}")
     
-            elif b_type == "video":
-                should_download = getattr(self, "download_video", False)
+            elif b_type in ["video", "audio"]:
+                # Check if enabled
+                should_download = getattr(self, f"download_{b_type}", False)
                 
-                # 1. Determine the URL
-                # Tumblr native videos are in 'media', external are often in 'url'
-                url = best_media_url(block.get("media", []))
-                provider = block.get("provider")
-                
-                if not url:
-                    url = block.get("url") or block.get("embed_url")
+                # Determine provider
+                provider = block.get("provider", "")
+                url = block.get("url") or block.get("embed_url") or best_media_url(block.get("media", []))
     
-                # 2. Handle the download
                 if url and should_download:
-                    if provider in ["youtube", "vimeo", "youtube_playlist"]:
-                        # Use the helper file
-                        url = download_video_locally(url, attachments_dir)
+                    # List of external providers we want to handle via yt-dlp
+                    external_providers = ["youtube", "vimeo", "bandcamp", "soundcloud"]
+                    
+                    if any(p in provider.lower() for p in external_providers):
+                        # Use the new helper for all external media
+                        url = download_media_locally(url, attachments_dir)
                     else:
-                        # Use your existing Tumblr attachment downloader
+                        # Native Tumblr file
                         url = self.download_attachment(url, attachments_dir, ts)
                 
                 if url:
-                    out.append(f"![Video]({url})")
-            
-            elif b_type in ["image", "audio"]:
-                # Check if user enabled this specific download type
-                should_download = getattr(self, f"download_{b_type}", False)
-                url = best_media_url(block.get("media", [])) if b_type != "audio" else block.get("url")
-                
-                if url and should_download:
-                    url = self.download_attachment(url, attachments_dir, ts)
-                
-                if url: # Only add to output if we actually have a link
                     label = b_type.capitalize()
                     out.append(f"![{label}]({url})")
-                
-        return "\n".join(out)
+            
+                elif b_type == "image":
+                    should_download = getattr(self, "download_image", True)
+                    # NPF images often have a media list; we want the best quality
+                    url = best_media_url(block.get("media", []))
+                    
+                    if url and should_download:
+                        url = self.download_attachment(url, attachments_dir, ts)
+                    
+                    if url:
+                        out.append(f"![Image]({url})")
+                        
+            return "\n".join(out)
 
     # ---------------- MARKDOWN ----------------
 
