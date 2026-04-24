@@ -17,7 +17,7 @@ import re
 from urllib.parse import urlparse
 
 class TumblrBackup:
-def **init**(self, blog_identifier: str, api_key: str, output_dir: str = "backup",
+def __init__(self, blog_identifier: str, api_key: str, output_dir: str = "backup",
 download_images: bool = True, download_videos: bool = True, download_audio: bool = True,
 consumer_secret: Optional[str] = None, oauth_token: Optional[str] = None,
 oauth_token_secret: Optional[str] = None, incremental_hours: Optional[int] = 5,
@@ -729,5 +729,5 @@ if add_to_youtube_playlist and youtube_urls:
         youtube_refresh_token
     )
 
-if **name** == "**main**":
+if __name__ == "__main__":
 main()
