@@ -112,12 +112,13 @@ class TumblrBackup:
 
     # ---------------- API ----------------
 
-    def fetch_posts(self, limit=20, before=None): # Changed offset to before
+    def fetch_posts(self, limit=20, before=None):
         url = f"{self.base_url}/blog/{self.blog_identifier}/posts"
         params = {
             "limit": min(limit, 20),
-            "before": before, # Use timestamp instead of offset
+            "before": before,
             "npf": "true",
+            "reblog_info": "true",
             "notes_info": "true",
         }
         if not self.auth:
