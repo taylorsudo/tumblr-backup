@@ -277,19 +277,33 @@ class TumblrBackup:
             elif b_type in ["video", "audio"]:
                 should_download = getattr(self, f"download_{b_type}", False)
                 provider = block.get("provider", "").lower()
-                url = block.get("url") or block.get("embed_url") or best_media_url(block.get("media", []))
+                
+                # Order of priority: explicit url -> embed_url -> media object
+                url = block.get("url") or block.get("embed_url")
+                if not url:
+                    url = best_media_url(block.get("media", []))
+    
+                # Extract Metadata (Title/Artist) for Audio
+                title = block.get("title")
+                artist = block.get("artist")
+                label = f"{artist} - {title}" if (artist and title) else (title or b_type.capitalize())
     
                 if url and should_download:
-                    # Add spotify to the check
+                    # Expanded Provider Check
                     external_providers = ["youtube", "vimeo", "bandcamp", "soundcloud", "spotify"]
                     
-                    if any(p in provider or p in url for p in external_providers):
+                    is_external = any(p in provider for p in external_providers) or \
+                                  any(p in url.lower() for p in external_providers)
+                    
+                    if is_external:
+                        # Pass the metadata to the downloader if it's Spotify/Audio
                         url = download_media(url, attachments_dir)
                     else:
+                        # Native Tumblr content
                         url = self.download_attachment(url, attachments_dir, ts)
                 
+                # 4. Final Output
                 if url:
-                    label = b_type.capitalize()
                     out.append(f"![{label}]({url})")
             
             elif b_type == "image":
