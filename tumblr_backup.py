@@ -25,7 +25,6 @@ delete_after_backup: bool = False, add_to_youtube_playlist: bool = False):
 """
 Initialize the Tumblr backup tool
 
-```
     Args:
         blog_identifier: Your Tumblr username
         api_key: Your Tumblr API consumer key
@@ -243,13 +242,11 @@ blocks: List[Dict[str, Any]],
 attachments_dir: Path,
 timestamp: int,
 quote_level: int = 0
-```
 
 ) -> List[str]:
 """
 Process NPF content blocks and convert them to markdown
 
-```
     Args:
         blocks: List of NPF content blocks
         attachments_dir: Directory to save attachments files
@@ -652,7 +649,6 @@ def backup(self) -> List[str]:
 
     # Return collected YouTube URLs for playlist integration
     return self.youtube_urls if self.add_to_youtube_playlist else []
-```
 
 def main():
 """
@@ -661,7 +657,6 @@ Main function to run the backup
 # Load configuration
 config_file = Path("config.json")
 
-```
 if not config_file.exists():
     print("Error: config.json not found!")
     print("Please create a config.json file with your Tumblr API credentials.")
@@ -733,7 +728,6 @@ if add_to_youtube_playlist and youtube_urls:
         youtube_playlist_id,
         youtube_refresh_token
     )
-```
 
 if **name** == "**main**":
 main()
