@@ -249,10 +249,8 @@ class TumblrBackup:
             for r in replies:
                 user = f"[{r.get('blog_name','unknown')}](https://www.tumblr.com/{r.get('blog_name','unknown')})"
                 text = sanitize_md(r.get("reply_text", ""))
-                reply_blocks.append(f"{user}:\n> {text}")
-            
-            # Combine replies with a single break, but separate from previous sections with double
-            out.append("**Replies:**\n" + "\n".join(reply_blocks))
+                reply_blocks.append(f"{user} replied:\n> {text}")
+                out.extend(reply_blocks)
 
         # Join all existing sections with double newlines
         return "\n\n".join(out).strip()
