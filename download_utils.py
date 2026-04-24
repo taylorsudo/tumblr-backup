@@ -34,7 +34,7 @@ def get_yt_url_from_songlink(spotify_url: str) -> str | None:
         logger.warning(f"Songlink resolution failed: {e}")
         return None
 
-def download_media_locally(url: str, output_parent: Path) -> str:
+def download_media(url: str, output_parent: Path) -> str:
     """
     Unified downloader for YouTube, Bandcamp, SoundCloud, and Spotify.
     """
