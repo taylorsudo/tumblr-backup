@@ -1,53 +1,95 @@
-#!/usr/bin/env python
-"""
-Tumblr Backup Script
-"""
+#!/usr/bin/env python3
 
 import os
+import re
 import json
+import time
 import requests
 from requests_oauthlib import OAuth1
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-import time
 from urllib.parse import urlparse
 
-try:
-    from youtube_playlist import add_youtube_videos_to_playlist
-except ImportError:
-    add_youtube_videos_to_playlist = None
+
+EARLIEST_DEFAULT = "2025-01-01"
+MAX_RETRIES = 5
+RATE_LIMIT_BASE_DELAY = 1.0
+
+
+def sanitize_md(text: str) -> str:
+    return text.replace("[", r"\[").replace("]", r"\]")
+
+
+def parse_earliest(date_str: str, tz: ZoneInfo) -> int:
+    dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=tz)
+    return int(dt.timestamp())
+
+
+def best_media_url(media_list):
+    if not media_list:
+        return ""
+    best = max(media_list, key=lambda m: m.get("width", 0))
+    return best.get("url", media_list[0].get("url", ""))
+
+
+def requests_with_retry(method: str, url: str, max_retries: int = MAX_RETRIES, **kwargs):
+    delay = RATE_LIMIT_BASE_DELAY
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            r = requests.request(method, url, **kwargs)
+
+            if r.status_code == 429:
+                try:
+                    wait = int(r.headers.get("Retry-After", delay))
+                except ValueError:
+                    wait = delay # Fallback to your base delay
+                time.sleep(wait)
+                delay *= 2
+                continue
+
+            r.raise_for_status()
+            return r
+
+        except requests.RequestException:
+            if attempt == max_retries:
+                return None
+            time.sleep(delay * (2 ** (attempt - 1)))
+
+    return None
 
 
 class TumblrBackup:
     def __init__(
         self,
-        blog_identifier: str,
-        api_key: str,
-        output_dir: str = "backup",
-        download_images: bool = True,
-        download_videos: bool = True,
-        download_audio: bool = True,
-        consumer_secret: Optional[str] = None,
-        oauth_token: Optional[str] = None,
-        oauth_token_secret: Optional[str] = None,
-        incremental_hours: Optional[int] = 5,
-        delete_after_backup: bool = False,
-        add_to_youtube_playlist: bool = False,
+        blog_identifier,
+        api_key,
+        output_dir="backup",
+        download_images=True,
+        download_videos=True,
+        download_audio=True,
+        consumer_secret=None,
+        oauth_token=None,
+        oauth_token_secret=None,
+        incremental_hours=5,
+        earliest_date=EARLIEST_DEFAULT,
+        delete_after_backup=False,
     ):
         self.blog_identifier = blog_identifier
         self.api_key = api_key
         self.output_dir = Path(output_dir)
         self.base_url = "https://api.tumblr.com/v2"
+
         self.download_images = download_images
         self.download_videos = download_videos
         self.download_audio = download_audio
+
         self.incremental_hours = incremental_hours
         self.delete_after_backup = delete_after_backup
-        self.add_to_youtube_playlist = add_to_youtube_playlist
-        self.youtube_urls: set[str] = set()
+
         self.tz = ZoneInfo("Australia/Sydney")
+        self.earliest_timestamp = parse_earliest(earliest_date, self.tz)
 
         self.consumer_secret = consumer_secret
         self.oauth_token = oauth_token
@@ -68,71 +110,56 @@ class TumblrBackup:
 
     def fetch_posts(self, limit=20, offset=0):
         url = f"{self.base_url}/blog/{self.blog_identifier}/posts"
-        params = {"limit": min(limit, 20), "offset": offset, "npf": "true"}
+        params = {
+            "limit": min(limit, 20),
+            "offset": offset,
+            "npf": "true",
+            "notes_info": "true",
+        }
 
         if not self.auth:
             params["api_key"] = self.api_key
 
-        retries = 0
+        r = requests_with_retry("GET", url, params=params, auth=self.auth)
+        return r.json() if r else None
 
-        while True:
-            try:
-                r = requests.get(url, params=params, auth=self.auth)
-
-                if r.status_code in (401, 403):
-                    raise RuntimeError("Authentication failed (check API key or OAuth credentials)")
-
-                if r.status_code == 429:
-                    wait = int(r.headers.get("Retry-After", 60))
-                    print(f"Rate limited. Sleeping {wait}s...")
-                    time.sleep(wait)
-                    retries += 1
-                    if retries > 5:
-                        raise RuntimeError("Exceeded retry limit (429)")
-                    continue
-
-                r.raise_for_status()
-                return r.json()
-
-            except requests.exceptions.RequestException as e:
-                raise RuntimeError(f"API request failed: {e}")
+    # ---------------- STREAM SAFE FETCH ----------------
 
     def fetch_all_posts(self):
         all_posts = []
         offset = 0
         limit = 20
+        now = int(time.time())
 
-        EARLIEST = int(datetime(2025, 1, 1, tzinfo=self.tz).timestamp())
-
-        cutoff = None
-        if self.incremental_hours:
-            cutoff = int(time.time()) - self.incremental_hours * 3600
+        if self.incremental_hours is not None:
+            cutoff = now - (self.incremental_hours * 3600)
+            window_floor = max(cutoff, self.earliest_timestamp)
+        else:
+            window_floor = self.earliest_timestamp
 
         while True:
-            res = self.fetch_posts(limit, offset)
+            resp = self.fetch_posts(limit=limit, offset=offset)
+            if not resp:
+                break
 
-            if "response" not in res:
-                raise RuntimeError("Malformed API response")
-
-            posts = res["response"].get("posts", [])
+            posts = resp["response"].get("posts", [])
             if not posts:
                 break
 
-            valid_in_batch = False
+            original = posts[:]  # preserve API order for safety check
 
-            for p in posts:
-                ts = p.get("timestamp", 0)
+            posts = list(reversed(posts))  # oldest → newest within batch
 
-                if cutoff:
-                    if EARLIEST <= ts <= cutoff:
-                        all_posts.append(p)
-                        valid_in_batch = True
-                else:
-                    if ts >= EARLIEST:
-                        all_posts.append(p)
-                        valid_in_batch = True
+            filtered = [
+                p for p in posts
+                if window_floor <= p.get("timestamp", 0) <= now
+            ]
 
-            if not valid_in_batch:
+            all_posts.extend(filtered)
+
+            # FIX: check BEFORE reversal using original ordering
+            oldest_original = original[-1].get("timestamp", 0)
+            if oldest_original < window_floor:
                 break
 
             offset += limit
@@ -140,27 +167,24 @@ class TumblrBackup:
 
         return all_posts
 
-    # ---------------- MEDIA ----------------
+    # ---------------- ATTACHMENTS ----------------
 
-    def download_attachments(self, url, directory, timestamp, index=0):
+    def download_attachment(self, url: str, folder: Path, ts: int) -> str:
         try:
-            directory.mkdir(parents=True, exist_ok=True)
-
             ext = os.path.splitext(urlparse(url).path)[1] or ""
-            base = datetime.fromtimestamp(timestamp, tz=self.tz).strftime(
-                "%Y-%m-%d-%H%M%S"
-            )
+            folder.mkdir(parents=True, exist_ok=True)
 
-            filename = f"{base}-{index}{ext}" if index else f"{base}{ext}"
-            path = directory / filename
+            base = datetime.fromtimestamp(ts, tz=self.tz).strftime("%Y-%m-%d-%H%M%S")
+            path = folder / f"{base}{ext}"
 
-            counter = 1
+            i = 1
             while path.exists():
-                path = directory / f"{base}-{index}-{counter}{ext}"
-                counter += 1
+                path = folder / f"{base}-{i}{ext}"
+                i += 1
 
-            r = requests.get(url, stream=True, timeout=30)
-            r.raise_for_status()
+            r = requests_with_retry("GET", url, stream=True)
+            if not r:
+                return url
 
             with open(path, "wb") as f:
                 for chunk in r.iter_content(8192):
@@ -171,164 +195,179 @@ class TumblrBackup:
         except Exception:
             return url
 
-    def is_external_attachments(self, url, t):
-        if t == "video":
-            return any(x in url.lower() for x in ["youtube.com", "youtu.be", "vimeo.com"])
-        if t == "audio":
-            return any(x in url.lower() for x in ["spotify.com", "soundcloud.com"])
-        return False
+    # ---------------- NOTES ----------------
 
-    def is_youtube_url(self, url):
-        return any(x in url.lower() for x in ["youtube.com", "youtu.be"])
+    def _format_notes(self, post):
+        notes = post.get("notes", [])
+        post_ts = post.get("timestamp", 0)
 
-    # ---------------- NPF ----------------
+        filtered = [n for n in notes if n.get("timestamp", 0) >= post_ts]
 
-    def process_npf_content_blocks(self, blocks, dir, ts, quote_level=0):
-        lines = []
-        prefix = ">" * quote_level if quote_level else ""
+        likes = [
+            f"[{n.get('blog_name','unknown')}](https://www.tumblr.com/{n.get('blog_name','unknown')})"
+            for n in filtered if n.get("type") == "like"
+        ]
 
-        for i, b in enumerate(blocks):
-            t = b.get("type")
+        reblogs = [
+            f"[{n.get('blog_name','unknown')}](https://www.tumblr.com/{n.get('blog_name','unknown')})"
+            for n in filtered if n.get("type") == "reblog"
+        ]
 
-            if t == "text":
-                text = b.get("text", "")
-                subtype = b.get("subtype", "")
+        replies = [n for n in filtered if n.get("type") == "reply"]
+        replies.sort(key=lambda x: x.get("timestamp", 0))
 
-                if subtype == "heading1":
-                    text = f"# {text}"
-                elif subtype == "heading2":
-                    text = f"## {text}"
-                elif subtype == "quote":
-                    text = f"> {text}"
-                elif subtype == "unordered":
-                    text = f"- {text}"
-                elif subtype == "ordered":
-                    text = f"1. {text}"
+        out = []
 
-                for line in text.split("\n"):
-                    lines.append(prefix + line)
+        if likes:
+            out.append("\n**Likes:** " + ", ".join(likes))
 
-            elif t in ["image", "video", "audio"]:
-                media = b.get("media", [])
-                url = media[0].get("url", "") if media else ""
-                if not url:
-                    continue
+        if reblogs:
+            out.append("\n**Reblogs:** " + ", ".join(reblogs))
 
-                if t == "image":
-                    path = (
-                        self.download_attachments(url, dir, ts, i)
-                        if self.download_images
-                        else url
-                    )
-                    lines.append(f"{prefix}![Image]({path})")
-                else:
-                    label = "Video" if t == "video" else "Audio"
+        for r in replies:
+            user = f"[{r.get('blog_name','unknown')}](https://www.tumblr.com/{r.get('blog_name','unknown')})"
+            text = sanitize_md(r.get("reply_text", ""))
+            out.append(f"\n{user}:\n> {text}")
 
-                    if t == "video" and self.add_to_youtube_playlist and self.is_youtube_url(url):
-                        self.youtube_urls.add(url)
+        return "".join(out).lstrip("\n")
 
-                    if (
-                        (t == "video" and self.download_videos)
-                        or (t == "audio" and self.download_audio)
-                    ) and not self.is_external_attachments(url, t):
-                        path = self.download_attachments(url, dir, ts, i)
-                    else:
-                        path = url
+    # ---------------- CONTENT ----------------
 
-                    lines.append(f"{prefix}[{label}]({path})")
+    def _process_blocks(self, blocks, attachments_dir: Path, ts: int):
+        out = []
 
-            elif t == "link":
-                url = b.get("url")
-                title = b.get("title", url)
-                lines.append(f"{prefix}[{title}]({url})")
+        for block in blocks:
+            if block.get("type") == "text":
+                text = sanitize_md(block.get("text", ""))
+                subtype = block.get("subtype", "")
 
-            if i < len(blocks) - 1:
-                lines.append("")
+                prefix = {
+                    "heading1": "# ",
+                    "heading2": "## ",
+                    "quote": "> ",
+                    "unordered": "- ",
+                    "ordered": "1. ",
+                }.get(subtype, "")
 
-        return lines
+                out.append(f"{prefix}{text}")
+
+            elif block.get("type") == "image":
+                url = best_media_url(block.get("media", []))
+                if url and self.download_images:
+                    url = self.download_attachment(url, attachments_dir, ts)
+                out.append(f"![img]({url})")
+
+        return "\n".join(out)
 
     # ---------------- MARKDOWN ----------------
 
-    def convert_to_markdown(self, post, dir):
+    def convert_to_markdown(self, post, attachments_dir: Path) -> str:
         md = []
-        ts = post.get("timestamp", 0)
-        dt = datetime.fromtimestamp(ts, tz=self.tz)
 
-        md.append(f"## {dt.strftime('%H:%M')}")
+        pid = str(post.get("id_string", post.get("id")))
+        ts = post.get("timestamp", 0)
+
+        md.append(f"<!-- tumblr-post-id: {pid} -->")
+        md.append(f"## {datetime.fromtimestamp(ts, tz=self.tz).strftime('%H:%M')}")
         md.append("")
 
-        content = post.get("content", [])
-        if content:
-            md.extend(self.process_npf_content_blocks(content, dir, ts))
+        # trail
+        for item in post.get("trail", []):
+            blog = item.get("blog", {}).get("name", "unknown")
+            md.append(f"**{blog}:**")
+
+            trail = self._process_blocks(item.get("content", []), attachments_dir, ts)
+            md.append("\n".join([f"> {l}" if l.strip() else ">" for l in trail.split("\n")]))
+            md.append("")
+
+        content = post.get("content") or [
+            {"type": "text", "text": post.get("summary")
+             or post.get("body")
+             or post.get("caption")
+             or ""}
+        ]
+
+        md.append(self._process_blocks(content, attachments_dir, ts))
+
+        # ---------------- TAGS (FIXED) ----------------
+        tags = post.get("tags", [])
+        if tags:
+            formatted = [f"`{t}`" if " " in t else t for t in tags]
+            md.append("\n" + " ".join(formatted))
+
+        # ---------------- NOTES ----------------
+        notes_md = self._format_notes(post)
+        if notes_md:
+            md.append("\n" + notes_md)
 
         return "\n".join(md)
 
-    # ---------------- FILE WRITING ----------------
+    # ---------------- SAVE ----------------
 
-    def save_daily_posts(self, date_key, posts):
+    def save_daily_posts(self, date_key: str, posts):
         y, m, d = date_key.split("/")
-        base = self.output_dir / y / m / "Tumblr"
-        base.mkdir(parents=True, exist_ok=True)
+        folder = self.output_dir / y / m
+        folder.mkdir(parents=True, exist_ok=True)
 
-        file = base / f"{d}.md"
-        attachments = base / "Attachments"
+        file = folder / f"{d}.md"
+        attachments = folder / "Attachments"
 
-        existing_ids = set()
-        if file.exists():
-            with open(file, "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.startswith("<!--ID:"):
-                        existing_ids.add(line.strip())
+        existing = file.read_text("utf-8") if file.exists() else ""
+        seen = set(re.findall(r"<!-- tumblr-post-id: (\d+) -->", existing))
 
         new_blocks = []
+        delete_queue = []
 
         for p in posts:
-            pid = str(p.get("id"))
-            marker = f"<!--ID:{pid}-->"
-            if marker in existing_ids:
+            pid = str(p.get("id_string", p.get("id")))
+
+            if pid in seen:
                 continue
 
-            new_blocks.append(
-                "\n\n".join([
-                    marker,
-                    self.convert_to_markdown(p, attachments)
-                ])
-            )
+            new_blocks.append(self.convert_to_markdown(p, attachments))
+            new_blocks.append("\n---\n")
 
             if self.delete_after_backup:
-                self.delete_post(pid)
+                delete_queue.append(pid)
 
         if not new_blocks:
             return
 
-        new_content = "\n\n---\n\n".join(new_blocks)
+        separator = "\n\n---\n\n" if existing.strip() else ""
+        full = existing.rstrip() + separator + "\n".join(new_blocks).strip()
 
-        if file.exists() and file.stat().st_size > 0:
-            with open(file, "a", encoding="utf-8") as f:
-                f.write("\n\n---\n\n" + new_content)
-        else:
-            with open(file, "w", encoding="utf-8") as f:
-                f.write(new_content)
+        tmp = file.with_suffix(".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(full)
+            f.flush()
+            os.fsync(f.fileno())
 
-    # ---------------- DELETE ----------------
+        os.replace(tmp, file)
 
-    def delete_post(self, post_id):
+        print("Transaction complete")
+
+        for pid in delete_queue:
+            self.delete_post(pid)
+
+    def delete_post(self, pid: str) -> bool:
         if not self.auth:
             return False
-        try:
-            r = requests.post(
-                f"{self.base_url}/blog/{self.blog_identifier}/post/delete",
-                data={"id": post_id},
-                auth=self.auth,
-            )
-            return r.status_code == 200
-        except Exception:
-            return False
 
-    # ---------------- RUN ----------------
+        url = f"{self.base_url}/blog/{self.blog_identifier}/post/delete"
+        r = requests_with_retry(
+            "POST",
+            url,
+            data={"id": pid, "blog-identifier": self.blog_identifier},
+            auth=self.auth,
+        )
+        return r is not None
+
+    # ---------------- ENTRY ----------------
 
     def backup(self):
         posts = self.fetch_all_posts()
+        if not posts:
+            return
 
         grouped = {}
         for p in posts:
@@ -336,52 +375,64 @@ class TumblrBackup:
             grouped.setdefault(key, []).append(p)
 
         for k, v in grouped.items():
-            v.sort(key=lambda x: x["timestamp"])
+            v.sort(key=lambda x: x.get("timestamp", 0))
             self.save_daily_posts(k, v)
 
-        return list(self.youtube_urls)
 
+def load_config():
+    def b(k, d=False):
+        v = os.environ.get(k)
+        return v.lower() in ("1", "true", "yes") if v else d
 
-# ---------------- MAIN ----------------
+    def i(k, d=None):
+        v = os.environ.get(k)
+        return int(v) if v else d
+
+    cfg_file = Path("config.json")
+    file_cfg = json.loads(cfg_file.read_text()) if cfg_file.exists() else {}
+
+    def g(k, d=None):
+        env_val = os.environ.get(k.upper())
+        return env_val if env_val is not None else file_cfg.get(k, d)
+
+    return {
+        "blog_identifier": g("blog_identifier"),
+        "api_key": g("api_key"),
+        "output_dir": g("output_dir", "backup"),
+        "download_images": b("DOWNLOAD_IMAGES", True),
+        "download_videos": b("DOWNLOAD_VIDEOS", True),
+        "download_audio": b("DOWNLOAD_AUDIO", True),
+        "incremental_hours": i("INCREMENTAL_HOURS", 5),
+        "earliest_date": g("earliest_date", EARLIEST_DEFAULT),
+        "delete_after_backup": b("DELETE_AFTER_BACKUP", False),
+        "consumer_secret": g("consumer_secret"),
+        "oauth_token": g("oauth_token"),
+        "oauth_token_secret": g("oauth_token_secret"),
+    }
+
 
 def main():
-    try:
-        with open("config.json") as f:
-            config = json.load(f)
+    cfg = load_config()
 
-        tb = TumblrBackup(
-            config["blog_identifier"],
-            config["api_key"],
-            config.get("output_dir", "backup"),
-            config.get("download_images", True),
-            config.get("download_videos", True),
-            config.get("download_audio", True),
-            config.get("consumer_secret"),
-            config.get("oauth_token"),
-            config.get("oauth_token_secret"),
-            config.get("incremental_hours", 5),
-            config.get("delete_after_backup", False),
-            config.get("add_to_youtube_playlist", False),
-        )
+    if not cfg["blog_identifier"] or not cfg["api_key"]:
+        return
 
-        urls = tb.backup()
+    backup = TumblrBackup(
+        blog_identifier=cfg["blog_identifier"],
+        api_key=cfg["api_key"],
+        output_dir=cfg["output_dir"],
+        download_images=cfg["download_images"],
+        download_videos=cfg["download_videos"],
+        download_audio=cfg["download_audio"],
+        consumer_secret=cfg["consumer_secret"],
+        oauth_token=cfg["oauth_token"],
+        oauth_token_secret=cfg["oauth_token_secret"],
+        incremental_hours=cfg["incremental_hours"],
+        earliest_date=cfg["earliest_date"],
+        delete_after_backup=cfg["delete_after_backup"],
+    )
 
-        if config.get("add_to_youtube_playlist") and urls:
-            if add_youtube_videos_to_playlist:
-                add_youtube_videos_to_playlist(
-                    urls,
-                    config.get("youtube_client_id"),
-                    config.get("youtube_client_secret"),
-                    config.get("youtube_playlist_id"),
-                    config.get("youtube_refresh_token"),
-                )
-            else:
-                print("Warning: youtube_playlist module not available")
-
-    except RuntimeError as e:
-        print(f"FAILED: {e}")
-    except FileNotFoundError:
-        print("Error: config.json not found.")
+    backup.backup()
 
 
 if __name__ == "__main__":
