@@ -4,46 +4,67 @@ from pathlib import Path
 
 def slugify_title(title: str) -> str:
     """Converts title to lowercase-dash-format and removes non-alphanumeric chars."""
-    # Convert to lowercase
     title = title.lower()
-    # Remove non-alphanumeric characters (except spaces)
+    # Remove non-alphanumeric characters (except spaces and dashes)
     title = re.sub(r'[^a-z0-9\s-]', '', title)
     # Replace spaces and multiple dashes with a single dash
     title = re.sub(r'[\s-]+', '-', title).strip('-')
     return title
 
-def download_video_locally(url: str, output_parent: Path) -> str:
-    """Downloads video using yt-dlp with sanitized filenames for GitHub/Markdown."""
-    target_dir = output_parent / "Videos"
-    target_dir.mkdir(parents=True, exist_ok=True)
-    
-    # We use a placeholder for the outtmpl and rename after download 
-    # to ensure our slugify_title logic is applied perfectly.
-    ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+def download_media_locally(url: str, output_parent: Path) -> str:
+    """
+    Downloads media from YouTube, Bandcamp, or SoundCloud.
+    Categorizes into Videos or Audio folders based on the source.
+    """
+    # 1. Extract info first to determine provider and title
+    ydl_opts_base = {
         'quiet': True,
         'no_warnings': True,
         'noplaylist': True,
     }
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # 1. Extract info without downloading first to get the title
+        with yt_dlp.YoutubeDL(ydl_opts_base) as ydl:
             info = ydl.extract_info(url, download=False)
-            video_title = info.get('title', 'video')
-            video_id = info.get('id', 'unknown')
+            provider = info.get('extractor_key', '').lower()
+            title = info.get('title', 'media')
+            media_id = info.get('id', 'unknown')
             
-            # 2. Create our custom filename
-            slug_title = slugify_title(video_title)
-            final_name = f"{slug_title}-{video_id}.mp4"
-            final_path = target_dir / final_name
+            # 2. Determine category and extension
+            # Bandcamp and SoundCloud are treated as Audio
+            if any(p in provider for p in ['bandcamp', 'soundcloud']):
+                subfolder = "Audio"
+                ext = "mp3"
+                # Options for high-quality audio extraction
+                format_opts = {
+                    'format': 'bestaudio/best',
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '192',
+                    }],
+                }
+            else:
+                subfolder = "Videos"
+                ext = "mp4"
+                format_opts = {
+                    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                }
+
+            # 3. Setup paths
+            target_dir = output_parent / subfolder
+            target_dir.mkdir(parents=True, exist_ok=True)
             
-            # 3. Set the output template and download
+            slug_name = f"{slugify_title(title)}-{media_id}.{ext}"
+            final_path = target_dir / slug_name
+
+            # 4. Perform the actual download
+            ydl.params.update(format_opts)
             ydl.params['outtmpl'] = str(final_path)
             ydl.download([url])
             
-            return f"Attachments/Videos/{final_name}"
-            
+            return f"Attachments/{subfolder}/{slug_name}"
+
     except Exception as e:
-        print(f"Video download failed for {url}: {e}")
+        print(f"Media download failed for {url}: {e}")
         return url
