@@ -353,11 +353,12 @@ class TumblrBackup:
         
         md.append(self._process_blocks(content, attachments_dir, ts))
         
-        # ---------------- TAGS (FIXED) ----------------
+        # ---------------- TAGS ----------------
         tags = post.get("tags", [])
         if tags:
-            formatted = [f"`{t}`" if " " in t else t for t in tags]
-            md.append(" ".join(formatted))
+            # If tag has a space, wrap in backticks, else add a '#' prefix.
+            formatted = [f"`{t}`" if " " in t else f"#{t}" for t in tags]
+            md.append(", ".join(formatted))
 
         # ---------------- NOTES ----------------
         notes_md = self._format_notes(post)
