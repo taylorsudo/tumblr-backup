@@ -25,7 +25,6 @@ def get_yt_url_from_songlink(spotify_url: str) -> str | None:
         resp.raise_for_status()
         data = resp.json()
         
-        # Look for youtubeMusic or youtube in the providers
         links = data.get("linksByPlatform", {})
         yt_data = links.get("youtubeMusic") or links.get("youtube")
         
@@ -37,68 +36,94 @@ def get_yt_url_from_songlink(spotify_url: str) -> str | None:
 def download_media(url: str, output_parent: Path) -> str:
     """
     Unified downloader for YouTube, Bandcamp, SoundCloud, and Spotify.
+    Returns a relative path string on success, or the original URL on failure.
     """
     is_spotify = "spotify.com" in url
-    
+
     # 1. Resolve Spotify to YouTube via Songlink
     if is_spotify:
         resolved_url = get_yt_url_from_songlink(url)
         if not resolved_url:
-            return url # Fallback to link if resolution fails
+            logger.warning(f"Could not resolve Spotify URL via Songlink: {url}")
+            return url
         target_url = resolved_url
     else:
         target_url = url
 
-    ydl_opts_base = {'quiet': True, 'no_warnings': True, 'noplaylist': True}
+    # 2. Probe metadata first (separate ydl instance, no download)
+    probe_opts = {'quiet': True, 'no_warnings': True, 'noplaylist': True}
+    try:
+        with yt_dlp.YoutubeDL(probe_opts) as ydl:
+            info = ydl.extract_info(target_url, download=False)
+    except Exception as e:
+        logger.error(f"Metadata probe failed for {target_url}: {e}")
+        return url
+
+    provider = info.get('extractor_key', '').lower()
+    title = info.get('title', 'media')
+    artist = info.get('artist') or info.get('uploader') or 'unknown'
+    media_id = info.get('id', 'unknown')
+
+    # 3. Decide audio vs video
+    audio_providers = ['bandcamp', 'soundcloud', 'youtubemusic']
+    is_audio = is_spotify or any(p in provider for p in audio_providers)
+
+    if is_audio:
+        subfolder = "Audio"
+        ext = "mp3"
+        format_str = 'bestaudio/best'
+        postprocessors = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }]
+    else:
+        subfolder = "Videos"
+        ext = "mp4"
+        format_str = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+        postprocessors = []
+
+    # 4. Set up output path
+    target_dir = output_parent / subfolder
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    base_name = slugify_name(f"{artist}-{title}" if artist != 'unknown' else title)
+    final_name = f"{base_name}-{media_id}.{ext}"
+    final_path = target_dir / final_name
+
+    # outtmpl WITHOUT stripping the extension — yt-dlp uses it as a base
+    # For audio post-processing, yt-dlp will replace the extension automatically,
+    # so we give it the stem and let FFmpegExtractAudio append .mp3.
+    outtmpl = str(final_path.with_suffix('')) if is_audio else str(final_path)
+
+    # 5. Download with a fresh ydl instance
+    download_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'noplaylist': True,
+        'format': format_str,
+        'outtmpl': outtmpl,
+        'postprocessors': postprocessors,
+    }
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts_base) as ydl:
-            info = ydl.extract_info(target_url, download=False)
-            provider = info.get('extractor_key', '').lower()
-            title = info.get('title', 'media')
-            artist = info.get('artist', 'unknown')
-            media_id = info.get('id', 'unknown')
-            
-            # Determine subfolder
-            if any(p in provider for p in ['bandcamp', 'soundcloud']) or is_spotify:
-                subfolder = "Audio"
-                ext = "mp3"
-                format_opts = {
-                    'format': 'bestaudio/best',
-                    'postprocessors': [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    }],
-                }
-            else:
-                subfolder = "Videos"
-                ext = "mp4"
-                format_opts = {'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'}
-
-            # Setup paths
-            target_dir = output_parent / subfolder
-            target_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Create slugified filename
-            base_name = slugify_name(f"{artist}-{title}" if artist != "unknown" else title)
-            final_name = f"{base_name}-{media_id}.{ext}"
-            final_path = target_dir / final_name
-
-            # 4. Download
-            ydl.params.update(format_opts)
-            ydl.params['outtmpl'] = str(final_path.with_suffix(''))
+        with yt_dlp.YoutubeDL(download_opts) as ydl:
             ydl.download([target_url])
-            
-            # 5. Optional: Basic Metadata for Spotify/Audio
-            if subfolder == "Audio":
-                embed_basic_metadata(str(final_path), title, artist, info.get('thumbnail'))
-            
-            return f"Attachments/{subfolder}/{final_name}"
-
     except Exception as e:
-        logger.error(f"Download failed for {url}: {e}")
+        logger.error(f"Download failed for {target_url}: {e}")
         return url
+
+    # 6. Verify file exists (yt-dlp may have written .mp3 after post-processing)
+    if not final_path.exists():
+        logger.error(f"Expected output not found: {final_path}")
+        return url
+
+    # 7. Embed metadata for audio
+    if is_audio:
+        embed_basic_metadata(str(final_path), title, artist, info.get('thumbnail'))
+
+    return f"Attachments/{subfolder}/{final_name}"
+
 
 def embed_basic_metadata(filepath: str, title: str, artist: str, cover_url: str = None):
     """Helper to add ID3 tags to downloaded audio."""
@@ -114,8 +139,14 @@ def embed_basic_metadata(filepath: str, title: str, artist: str, cover_url: str 
         if cover_url:
             r = requests.get(cover_url, timeout=5)
             if r.status_code == 200:
-                audio.add(APIC(encoding=3, mime="image/jpeg", type=3, desc="Cover", data=r.content))
+                audio.add(APIC(
+                    encoding=3,
+                    mime="image/jpeg",
+                    type=3,
+                    desc="Cover",
+                    data=r.content,
+                ))
         
         audio.save(filepath, v2_version=3)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Metadata embedding failed for {filepath}: {e}")
