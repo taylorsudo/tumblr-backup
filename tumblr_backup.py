@@ -356,6 +356,7 @@ class TumblrBackup:
         # ---------------- TAGS ----------------
         tags = post.get("tags", [])
         if tags:
+            md.append("")
             # If tag has a space, wrap in backticks, else add a '#' prefix.
             formatted = [f"`{t}`" if " " in t else f"#{t}" for t in tags]
             md.append(", ".join(formatted))
