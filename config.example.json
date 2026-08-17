@@ -9,5 +9,5 @@
   "download_video": true,
   "download_audio": true,
   "incremental_hours": 24,
-  "delete_after_backup": true,
+  "delete_after_backup": true
 }

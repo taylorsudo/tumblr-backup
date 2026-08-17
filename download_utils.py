@@ -7,6 +7,8 @@ from mutagen.id3 import (
     ID3, ID3NoHeaderError, TIT2, TPE1, TALB, TDRC, APIC
 )
 
+from media_types import AUDIO_SUBFOLDER, VIDEOS_SUBFOLDER
+
 logger = logging.getLogger(__name__)
 
 def slugify_name(text: str) -> str:
@@ -69,7 +71,7 @@ def download_media(url: str, output_parent: Path) -> str:
     is_audio = is_spotify or any(p in provider for p in audio_providers)
 
     if is_audio:
-        subfolder = "Audio"
+        subfolder = AUDIO_SUBFOLDER
         ext = "mp3"
         format_str = 'bestaudio/best'
         postprocessors = [{
@@ -78,7 +80,7 @@ def download_media(url: str, output_parent: Path) -> str:
             'preferredquality': '192',
         }]
     else:
-        subfolder = "Videos"
+        subfolder = VIDEOS_SUBFOLDER
         ext = "mp4"
         format_str = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
         postprocessors = []
